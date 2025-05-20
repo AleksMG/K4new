@@ -3,134 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vigenère Cracker Pro</title>
+    <title>Ultimate Vigenère Cracker</title>
     <style>
         :root {
-            --primary-color: #2c3e50;
-            --secondary-color: #3498db;
-            --background-color: #ecf0f1;
-            --text-color: #2c3e50;
-            --error-color: #e74c3c;
-            --success-color: #2ecc71;
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --background: #f8f9fa;
+            --text: #2c3e50;
+            --error: #e74c3c;
+            --success: #27ae60;
         }
 
         body {
             font-family: 'Courier New', monospace;
-            background-color: var(--background-color);
-            color: var(--text-color);
-            margin: 2rem;
+            background: var(--background);
+            color: var(--text);
+            margin: 20px;
             line-height: 1.6;
         }
 
         .container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
             max-width: 1200px;
             margin: 0 auto;
         }
 
         .panel {
             background: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
 
         .input-group {
-            margin-bottom: 1.5rem;
+            margin-bottom: 15px;
         }
 
         label {
             display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
+            margin-bottom: 5px;
+            font-weight: bold;
         }
 
         textarea, input {
             width: 100%;
-            padding: 0.8rem;
+            padding: 10px;
             border: 2px solid #ddd;
-            border-radius: 4px;
-            font-family: inherit;
-            font-size: 1rem;
+            border-radius: 5px;
+            font-size: 14px;
         }
 
         button {
-            background-color: var(--secondary-color);
+            background: var(--secondary);
             color: white;
             border: none;
-            padding: 0.8rem 1.5rem;
-            border-radius: 4px;
+            padding: 10px 20px;
+            border-radius: 5px;
             cursor: pointer;
-            margin: 0.5rem;
+            transition: opacity 0.3s;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .progress {
+            height: 8px;
+            background: #eee;
+            border-radius: 4px;
+            margin: 15px 0;
         }
 
         .progress-bar {
-            height: 8px;
-            background-color: #eee;
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 1rem 0;
-        }
-
-        .progress-fill {
             height: 100%;
-            background-color: var(--success-color);
-            transition: width 0.3s ease;
+            background: var(--success);
+            transition: width 0.3s;
         }
 
-        .result-item {
-            padding: 1rem;
-            margin: 1rem 0;
-            background-color: white;
-            border-radius: 4px;
+        .result {
+            padding: 15px;
+            margin: 10px 0;
+            background: white;
+            border-radius: 5px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
         .match {
-            background-color: #f1c40f33;
-            padding: 0.1em 0.3em;
-            border-radius: 2px;
+            background: #f1c40f33;
+            padding: 2px 4px;
+            border-radius: 3px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="panel">
-            <h1>Vigenère Cracker Pro</h1>
+            <h1>Vigenère Cracker</h1>
             
             <div class="input-group">
-                <label for="ciphertext">Ciphertext:</label>
+                <label>Ciphertext:</label>
                 <textarea id="ciphertext" rows="6">OBKRUOXOGHULBSOLIFBBWFLRVQQPRNGKSSOTWTQSJQSSEKZZWATJKLUDIAWINFBNYPVTTMZFPKWGDKZXTJCDIGKUHUAUEKCAR</textarea>
             </div>
 
             <div class="input-group">
-                <label for="knownText">Known Plaintext:</label>
+                <label>Known Plaintext:</label>
                 <input id="knownText" type="text" value="NORTHEAST">
             </div>
 
             <div class="input-group">
-                <label for="alphabet">Cipher Alphabet:</label>
+                <label>Cipher Alphabet:</label>
                 <input id="alphabet" type="text" value="KRYPTOSABCDEFGHIJLMNQUVWXZ">
             </div>
 
             <div class="input-group">
-                <label for="keyLength">Max Key Length:</label>
+                <label>Max Key Length:</label>
                 <input id="keyLength" type="number" value="9" min="1" max="26">
             </div>
 
-            <button id="analyzeBtn">Start Analysis</button>
-            <button id="stopBtn" disabled>Stop</button>
-
-            <div class="progress-bar">
-                <div class="progress-fill" id="progressBar" style="width: 0%"></div>
+            <div class="input-group">
+                <button id="analyzeBtn">Start Analysis</button>
+                <button id="stopBtn" disabled>Stop</button>
             </div>
-            <div id="status"></div>
+
+            <div class="progress">
+                <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+            </div>
+            <div id="status">Ready</div>
         </div>
 
         <div class="panel">
-            <h2>Analysis Results</h2>
+            <h2>Results</h2>
             <div id="results"></div>
         </div>
     </div>
@@ -138,72 +143,76 @@
 <script>
 'use strict';
 
-class VigenèreAnalyzer {
+class VigenereSolver {
     constructor() {
+        this.worker = this.createWorker();
+    }
+
+    createWorker() {
         const workerCode = `
             self.onmessage = function(e) {
                 const { ciphertext, known, alphabet, maxKeyLength } = e.data;
                 const mod = alphabet.length;
                 const results = new Map();
-                const knownLength = known.length;
-                
-                for (let pos = 0; pos <= ciphertext.length - knownLength; pos++) {
-                    const fragment = ciphertext.slice(pos, pos + knownLength);
-                    const keyFragment = Array.from({length: knownLength}, (_, i) => {
+                const knownUpper = known.toUpperCase();
+                const knownLen = knownUpper.length;
+
+                for (let pos = 0; pos <= ciphertext.length - knownLen; pos++) {
+                    const fragment = ciphertext.substr(pos, knownLen);
+                    const keyFragment = Array.from(knownUpper, (pChar, i) => {
                         const cIdx = alphabet.indexOf(fragment[i]);
-                        const pIdx = alphabet.indexOf(known[i]);
-                        return cIdx !== -1 && pIdx !== -1 ? 
+                        const pIdx = alphabet.indexOf(pChar);
+                        return cIdx >= 0 && pIdx >= 0 ? 
                             alphabet[(cIdx - pIdx + mod) % mod] : null;
                     }).filter(c => c !== null).join('');
-                    
-                    generateKeyCandidates(keyFragment, maxKeyLength).forEach(key => {
-                        const decrypted = decrypt(ciphertext, key, alphabet);
-                        if (decrypted.includes(known)) {
-                            const entry = results.get(key) || { positions: [], decrypted };
-                            entry.positions.push(pos);
-                            results.set(key, entry);
+
+                    for (let keyLen = 1; keyLen <= maxKeyLength; keyLen++) {
+                        const base = keyFragment.substr(0, keyLen);
+                        if (keyFragment === base.repeat(Math.ceil(keyFragment.length / keyLen)).substr(0, keyFragment.length)) {
+                            const key = base;
+                            const decrypted = decrypt(ciphertext, key, alphabet);
+                            if (decrypted.includes(knownUpper)) {
+                                const entry = results.get(key) || { positions: [], decrypted };
+                                entry.positions.push(pos);
+                                results.set(key, entry);
+                            }
                         }
+                    }
+
+                    postMessage({ 
+                        type: 'progress', 
+                        current: pos + 1, 
+                        total: ciphertext.length - knownLen + 1 
                     });
-                    
-                    postMessage({ type: 'progress', current: pos + 1, total: ciphertext.length - knownLength + 1 });
                 }
+
                 postMessage({ type: 'results', data: Array.from(results.entries()) });
             };
 
-            function generateKeyCandidates(fragment, maxLen) {
-                const candidates = new Set();
-                for (let len = 1; len <= maxLen; len++) {
-                    const base = fragment.slice(0, len);
-                    if (fragment === base.repeat(Math.ceil(fragment.length / len)).slice(0, fragment.length)) {
-                        candidates.add(base);
-                    }
-                }
-                return Array.from(candidates);
-            }
-
-            function decrypt(ciphertext, key, alphabet) {
-                return Array.from(ciphertext, (c, i) => {
+            function decrypt(text, key, alphabet) {
+                return Array.from(text, (c, i) => {
                     const cIdx = alphabet.indexOf(c);
                     const kIdx = alphabet.indexOf(key[i % key.length]);
-                    return cIdx !== -1 && kIdx !== -1 ?
+                    return cIdx >= 0 && kIdx >= 0 ?
                         alphabet[(cIdx - kIdx + alphabet.length) % alphabet.length] : '�';
                 }).join('');
             }
         `;
 
-        const blob = new Blob([workerCode], {type: 'application/javascript'});
-        this.worker = new Worker(URL.createObjectURL(blob));
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        return new Worker(URL.createObjectURL(blob));
     }
 
     analyze(params) {
         return new Promise((resolve) => {
             this.worker.onmessage = (e) => {
-                if (e.data.type === 'results') resolve(e.data.data);
-                else if (e.data.type === 'progress') {
+                if (e.data.type === 'results') {
+                    resolve(e.data.data);
+                } else if (e.data.type === 'progress') {
                     const progress = (e.data.current / e.data.total) * 100;
                     document.getElementById('progressBar').style.width = `${progress}%`;
                     document.getElementById('status').textContent = 
-                        `Processed ${e.data.current} of ${e.data.total} (${Math.round(progress)}%)`;
+                        `Processing: ${Math.round(progress)}% (${e.data.current}/${e.data.total})`;
                 }
             };
             this.worker.postMessage(params);
@@ -215,55 +224,79 @@ class VigenèreAnalyzer {
     }
 }
 
-let analyzer = null;
+let solver = null;
 
 document.getElementById('analyzeBtn').addEventListener('click', async () => {
     try {
-        const ciphertext = document.getElementById('ciphertext').value.toUpperCase().replace(/[^A-Z]/g, '');
-        const known = document.getElementById('knownText').value.toUpperCase().replace(/[^A-Z]/g, '');
-        const alphabet = [...new Set(document.getElementById('alphabet').value.toUpperCase().replace(/[^A-Z]/g, ''))].join('');
+        const ciphertext = cleanInput(document.getElementById('ciphertext').value);
+        const known = cleanInput(document.getElementById('knownText').value);
+        const alphabet = validateAlphabet(document.getElementById('alphabet').value);
         const maxKeyLength = parseInt(document.getElementById('keyLength').value);
 
+        if (!ciphertext || !known) {
+            showError('Ciphertext and Known Text are required');
+            return;
+        }
+
         if (alphabet.length !== 26) {
-            alert('Alphabet must contain exactly 26 unique characters!');
+            showError('Alphabet must contain exactly 26 unique characters');
             return;
         }
 
         document.getElementById('results').innerHTML = '';
         document.getElementById('stopBtn').disabled = false;
         
-        analyzer = new VigenèreAnalyzer();
-        const results = await analyzer.analyze({
-            ciphertext,
-            known,
-            alphabet,
-            maxKeyLength
-        });
-
+        solver = new VigenereSolver();
+        const results = await solver.analyze({ ciphertext, known, alphabet, maxKeyLength });
+        
         displayResults(results, known);
+
     } catch (error) {
-        alert('Error: ' + error.message);
+        showError(error.message);
     } finally {
-        analyzer = null;
+        solver = null;
         document.getElementById('stopBtn').disabled = true;
     }
 });
 
 document.getElementById('stopBtn').addEventListener('click', () => {
-    if (analyzer) analyzer.terminate();
+    if (solver) solver.terminate();
 });
 
-function displayResults(results, knownText) {
+function cleanInput(str) {
+    return str.toUpperCase().replace(/[^A-Z]/g, '');
+}
+
+function validateAlphabet(input) {
+    return [...new Set(cleanInput(input))].join('');
+}
+
+function displayResults(results, known) {
     const container = document.getElementById('results');
     container.innerHTML = results
         .sort((a, b) => a[0].length - b[0].length)
         .map(([key, data]) => `
-            <div class="result-item">
+            <div class="result">
                 <strong>Key: ${key}</strong> (Length: ${key.length})<br>
                 Matches: ${data.positions.length}<br>
-                Decrypted: ${data.decrypted.replace(new RegExp(knownText, 'gi'), '<span class="match">$&</span>')}
+                Decrypted: ${highlightMatches(data.decrypted, known)}
             </div>
         `).join('');
+}
+
+function highlightMatches(text, pattern) {
+    const regex = new RegExp(pattern, 'gi');
+    return text.replace(regex, '<span class="match">$&</span>');
+}
+
+function showError(message) {
+    const status = document.getElementById('status');
+    status.style.color = 'var(--error)';
+    status.textContent = message;
+    setTimeout(() => {
+        status.style.color = '';
+        status.textContent = 'Ready';
+    }, 5000);
 }
 </script>
 </body>
