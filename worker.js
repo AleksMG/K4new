@@ -1,155 +1,86 @@
-function calculateKeyConfidence(key, alphabet, decryptedFragment) {
-    // Улучшенная эвристика:
-    // 1. Предпочтение более коротким ключам
-    // 2. Учет повторяемости паттернов
-    // 3. Анализ осмысленности расшифрованного текста
-    
-    const lengthPenalty = Math.min(1, 3 / key.length); // Предпочтение коротким ключам
-    
-    const uniqueChars = new Set(key).size;
-    const uniqueScore = 1 - (uniqueChars - 1) / key.length;
-    
-    let patternScore = 0;
-    if (key.length > 1) {
-        for (let i = 1; i < key.length; i++) {
-            if (key[i] === key[i-1]) patternScore += 0.5;
-        }
-        patternScore = Math.min(1, patternScore / key.length);
-    }
-    
-    // Простая проверка на гласные в расшифрованном тексте
-    let textScore = 0;
-    const vowels = new Set(['A', 'E', 'I', 'O', 'U', 'Y']);
-    if (decryptedFragment) {
-        let vowelCount = 0;
-        for (let i = 0; i < decryptedFragment.length; i++) {
-            if (vowels.has(decryptedFragment[i])) vowelCount++;
-        }
-        textScore = vowelCount / decryptedFragment.length;
-    }
-    
-    return (lengthPenalty * 0.4 + uniqueScore * 0.2 + patternScore * 0.2 + textScore * 0.2);
+function calculateConfidence(key, decryptedFragment) {
+    // Реализация оценки ключа
+    const factors = {
+        length: Math.min(1, 5 / key.length),
+        uniqueness: 1 - (new Set(key).size - 1) / key.length,
+        vowels: (decryptedFragment.match(/[AEIOUY]/gi) || []).length / decryptedFragment.length
+    };
+
+    return (factors.length * 0.5 + factors.uniqueness * 0.3 + factors.vowels * 0.2);
 }
 
-function findAllKeys(ciphertext, knownText, alphabet) {
+self.onmessage = function(e) {
+    if (e.data.type !== 'crack') return;
+
+    const { ciphertext, knownText, alphabet } = e.data;
+    const maxKeyLength = 15;
     const results = [];
-    const n = alphabet.length;
-    const maxAttempts = 100000;
-    const maxKeyLength = 20; // Максимальная длина ключа для проверки
-    
-    let attempts = 0;
-    let lastReport = 0;
-    
-    // Проверяем ключи разной длины от 1 до maxKeyLength символов
+    const totalSteps = maxKeyLength * ciphertext.length;
+    let stepsDone = 0;
+
     for (let keyLength = 1; keyLength <= maxKeyLength; keyLength++) {
-        // Проверяем все возможные позиции в шифртексте
-        for (let pos = 0; pos <= ciphertext.length - knownText.length; pos++) {
-            if (attempts++ > maxAttempts) break;
-            
-            const progress = Math.floor((keyLength * (ciphertext.length - knownText.length) + pos) / 
-                           (maxKeyLength * (ciphertext.length - knownText.length)) * 100);
-            if (progress > lastReport) {
-                lastReport = progress;
+        for (let pos = 0; pos < ciphertext.length; pos++) {
+            let key = '';
+            let valid = true;
+
+            for (let i = 0; i < keyLength; i++) {
+                const actualPos = (pos + i) % ciphertext.length;
+                const cipherChar = ciphertext[actualPos];
+                const knownChar = knownText[i % knownText.length];
+
+                const cipherIndex = alphabet.indexOf(cipherChar);
+                const knownIndex = alphabet.indexOf(knownChar);
+
+                if (cipherIndex === -1 || knownIndex === -1) {
+                    valid = false;
+                    break;
+                }
+
+                const keyIndex = (cipherIndex - knownIndex + alphabet.length) % alphabet.length;
+                key += alphabet[keyIndex];
+            }
+
+            if (valid && key.length === keyLength) {
+                const decryptedFragment = decryptFragment(
+                    ciphertext.substring(pos, pos + knownText.length),
+                    key,
+                    alphabet
+                );
+
+                results.push({
+                    key,
+                    position: pos,
+                    confidence: calculateConfidence(key, decryptedFragment),
+                    decryptedFragment
+                });
+            }
+
+            stepsDone++;
+            if (stepsDone % 100 === 0) {
                 self.postMessage({
                     type: 'progress',
                     data: {
-                        progress,
+                        progress: Math.floor((stepsDone / totalSteps) * 100),
                         keys: results.length
                     }
                 });
             }
-            
-            let key = '';
-            let isValid = true;
-            
-            // Генерируем ключ заданной длины
-            for (let i = 0; i < keyLength; i++) {
-                const keyPos = (pos + i) % ciphertext.length;
-                const cipherChar = ciphertext[keyPos];
-                const knownChar = knownText[i % knownText.length];
-                
-                const cipherIndex = alphabet.indexOf(cipherChar);
-                const knownIndex = alphabet.indexOf(knownChar);
-                
-                if (cipherIndex === -1 || knownIndex === -1) {
-                    isValid = false;
-                    break;
-                }
-                
-                const keyIndex = (cipherIndex - knownIndex + n) % n;
-                key += alphabet[keyIndex];
-            }
-            
-            if (isValid && key.length === keyLength) {
-                // Расшифровываем фрагмент для проверки
-                const decryptedFragment = vigenereDecrypt(
-                    ciphertext.substr(pos, knownText.length),
-                    key,
-                    alphabet
-                );
-                
-                const confidence = calculateKeyConfidence(key, alphabet, decryptedFragment);
-                
-                results.push({
-                    position: pos,
-                    key,
-                    confidence,
-                    decryptedFragment
-                });
-            }
         }
     }
-    
-    return results;
-}
 
-function vigenereDecrypt(ciphertext, key, alphabet) {
-    const n = alphabet.length;
+    self.postMessage({ type: 'result', data: { results } });
+};
+
+function decryptFragment(ciphertext, key, alphabet) {
     let decrypted = '';
     let keyIndex = 0;
-    
+
     for (let i = 0; i < ciphertext.length; i++) {
-        const cipherChar = ciphertext[i];
-        const cipherPos = alphabet.indexOf(cipherChar);
-        
-        if (cipherPos === -1) {
-            decrypted += cipherChar;
-            continue;
-        }
-        
-        const keyChar = key[keyIndex % key.length];
-        const keyPos = alphabet.indexOf(keyChar);
-        
-        if (keyPos === -1) {
-            decrypted += '?';
-            keyIndex++;
-            continue;
-        }
-        
-        const decryptedPos = (cipherPos - keyPos + n) % n;
-        decrypted += alphabet[decryptedPos];
-        
+        const cipherPos = alphabet.indexOf(ciphertext[i]);
+        const keyPos = alphabet.indexOf(key[keyIndex % key.length]);
+        decrypted += alphabet[(cipherPos - keyPos + alphabet.length) % alphabet.length];
         keyIndex++;
     }
-    
+
     return decrypted;
 }
-
-self.onmessage = function(e) {
-    const { type, ciphertext, knownText, alphabet } = e.data;
-    
-    if (type === 'crack') {
-        try {
-            const results = findAllKeys(ciphertext, knownText, alphabet);
-            self.postMessage({
-                type: 'result',
-                data: { results }
-            });
-        } catch (error) {
-            self.postMessage({
-                type: 'error',
-                data: { message: error.message }
-            });
-        }
-    }
-};
