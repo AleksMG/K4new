@@ -69,15 +69,13 @@ class VigenereCracker {
 
     displayResults({ keys, decrypted }) {
         this.keyList.innerHTML = keys.map((key, index) => `
-            <div class="key-item" data-key="${key.value}" 
-                 onclick="vigenereCracker.selectKey(${index})">
+            <div class="key-item" onclick="vigenereCracker.selectKey(${index})">
                 <div class="key-header">
                     <span class="key-value">${key.value}</span>
                     <span class="key-length">${key.value.length} chars</span>
                 </div>
                 <div class="key-meta">
-                    Position: ${key.position} | 
-                    Confidence: ${key.confidence.toFixed(2)}
+                    Position: ${key.position} | Confidence: ${key.confidence.toFixed(2)}
                 </div>
             </div>
         `).join('');
@@ -114,25 +112,26 @@ class VigenereCracker {
         }).join('');
     }
 
-    // В файле app.js, исправляем функцию highlightText
-highlightText(text, phrase) {
-    if (!phrase) return text; // Добавляем проверку на пустую фразу
-    const regex = new RegExp(`(${this.escapeRegExp(phrase)})`, 'gi');
-    return text.replace(regex, '<span class="highlight">$1</span>');
-}
+    highlightText(text, phrase) {
+        if (!phrase) return text;
+        const regex = new RegExp(`(${this.escapeRegExp(phrase)})`, 'gi');
+        return text.replace(regex, '<span class="highlight">$1</span>');
+    }
 
-// Добавляем отсутствующую функцию экранирования
-escapeRegExp(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+    escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
 
-    updateProgress({ processed, total }) {
+    updateProgress({ processed, total, keysFound }) {
         const percent = Math.round((processed / total) * 100);
-        this.statusElement.textContent = `Processing: ${percent}% completed`;
+        this.statusElement.innerHTML = `
+            <progress value="${percent}" max="100"></progress>
+            ${percent}% (Keys found: ${keysFound})
+        `;
     }
 
     showError(message) {
-        this.statusElement.innerHTML = `<span style="color: ${errorColor}">${message}</span>`;
+        this.statusElement.innerHTML = `<span style="color: var(--error-color)">${message}</span>`;
     }
 
     setLoadingState(isLoading) {
