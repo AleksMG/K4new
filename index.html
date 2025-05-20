@@ -2,179 +2,320 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Vigenère Cracker Ultimate</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Vigenère Cracker</title>
     <style>
         :root {
-            --bg-color: #1a1a1a;
-            --text-color: #e0e0e0;
-            --accent: #00bcd4;
-            --match-bg: #ffeb3b33;
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --background-color: #ecf0f1;
+            --text-color: #2c3e50;
+            --error-color: #e74c3c;
+            --success-color: #2ecc71;
         }
+
         body {
-            font-family: 'Consolas', monospace;
-            background: var(--bg-color);
+            font-family: 'Fira Code', monospace;
+            background-color: var(--background-color);
             color: var(--text-color);
             margin: 2rem;
+            line-height: 1.6;
         }
+
         .container {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
         }
+
         .panel {
-            background: #2d2d2d;
+            background: white;
             padding: 1.5rem;
             border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        textarea, input, button {
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        textarea, input, select {
             width: 100%;
-            margin: 0.5rem 0;
-            padding: 0.5rem;
-            background: #3d3d3d;
-            border: 1px solid #4d4d4d;
-            color: var(--text-color);
+            padding: 0.8rem;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
         }
-        .match {
-            background: var(--match-bg);
-            padding: 2px;
+
+        textarea:focus, input:focus {
+            border-color: var(--secondary-color);
+            outline: none;
         }
-        .progress {
-            color: #00bcd4;
+
+        button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: opacity 0.3s ease;
+            font-size: 1rem;
+        }
+
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background-color: #eee;
+            border-radius: 4px;
+            overflow: hidden;
             margin: 1rem 0;
         }
-        #controls {
-            display: flex;
-            gap: 0.5rem;
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--success-color);
+            transition: width 0.3s ease;
+        }
+
+        .result-item {
+            padding: 1rem;
+            margin: 1rem 0;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .match {
+            background-color: #f1c40f33;
+            padding: 0.1em 0.3em;
+            border-radius: 2px;
+        }
+
+        .error-message {
+            color: var(--error-color);
+            padding: 1rem;
+            margin: 1rem 0;
+            border: 1px solid var(--error-color);
+            border-radius: 4px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="panel">
-            <h2>Input</h2>
-            <textarea id="ciphertext" rows="6">OBKRUOXOGHULBSOLIFBBWFLRVQQPRNGKSSOTWTQSJQSSEKZZWATJKLUDIAWINFBNYPVTTMZFPKWGDKZXTJCDIGKUHUAUEKCAR</textarea>
-            <input id="knownText" type="text" value="NORTHEAST" placeholder="Known plaintext">
-            <input id="alphabet" type="text" value="KRYPTOSABCDEFGHIJLMNQUVWXZ" placeholder="Alphabet">
-            <input id="keyLength" type="number" value="9" min="1" placeholder="Key length">
-            <div id="controls">
-                <button onclick="start()">Analyze</button>
-                <button onclick="stop()" id="stopBtn" disabled>Stop</button>
+            <h1>Vigenère Cracker Pro</h1>
+            <div class="input-group">
+                <label for="ciphertext">Ciphertext:</label>
+                <textarea id="ciphertext" rows="6">OBKRUOXOGHULBSOLIFBBWFLRVQQPRNGKSSOTWTQSJQSSEKZZWATJKLUDIAWINFBNYPVTTMZFPKWGDKZXTJCDIGKUHUAUEKCAR</textarea>
             </div>
-            <div id="progress" class="progress"></div>
+
+            <div class="input-group">
+                <label for="knownText">Known Plaintext:</label>
+                <input id="knownText" type="text" value="NORTHEAST">
+            </div>
+
+            <div class="input-group">
+                <label for="alphabet">Cipher Alphabet:</label>
+                <input id="alphabet" type="text" value="KRYPTOSABCDEFGHIJLMNQUVWXZ">
+            </div>
+
+            <div class="input-group">
+                <label for="keyLength">Max Key Length:</label>
+                <input id="keyLength" type="number" value="9" min="1" max="26">
+            </div>
+
+            <div class="controls">
+                <button id="analyzeBtn" onclick="startAnalysis()">Start Analysis</button>
+                <button id="stopBtn" onclick="stopAnalysis()" disabled>Stop</button>
+            </div>
+
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressBar" style="width: 0%"></div>
+            </div>
+            <div id="status"></div>
         </div>
+
         <div class="panel">
-            <h2>Results</h2>
+            <h2>Analysis Results</h2>
             <div id="results"></div>
+            <div id="pagination"></div>
         </div>
     </div>
 
 <script>
-let isRunning = false;
-let currentPos = 0;
+'use strict';
 
-class VigenèrePro {
-    static decrypt(ciphertext, key, alphabet) {
-        const mod = alphabet.length;
-        return [...ciphertext].map((c, i) => {
-            const keyChar = key[i % key.length];
-            const cIdx = alphabet.indexOf(c);
-            const kIdx = alphabet.indexOf(keyChar);
-            return (cIdx !== -1 && kIdx !== -1) 
-                ? alphabet[(cIdx - kIdx + mod) % mod]
-                : '�';
-        }).join('');
-    }
-
-    static generateKeyVariants(fragment, targetLen) {
-        const variants = new Set();
-        for (let len = 1; len <= targetLen; len++) {
-            const base = fragment.slice(0, len);
-            const repeated = base.repeat(Math.ceil(fragment.length / len)).slice(0, fragment.length);
-            if (repeated === fragment) variants.add(base);
-        }
-        return Array.from(variants);
-    }
-
-    static async process(ciphertext, known, alphabet, keyLength, update) {
-        const validKeys = new Map();
-        const knownLen = known.length;
-        const total = ciphertext.length - knownLen;
-
-        for (currentPos = 0; currentPos <= total; currentPos++) {
-            if (!isRunning) break;
-
-            const cipherFragment = ciphertext.slice(currentPos, currentPos + knownLen);
-            const keyFragment = [...known].map((pChar, i) => {
-                const c = cipherFragment[i];
-                const pIdx = alphabet.indexOf(pChar);
-                const cIdx = alphabet.indexOf(c);
-                return (pIdx !== -1 && cIdx !== -1) 
-                    ? alphabet[(cIdx - pIdx + alphabet.length) % alphabet.length]
-                    : null;
-            }).filter(c => c !== null).join('');
-
-            const candidates = this.generateKeyVariants(keyFragment, keyLength);
-            for (const key of candidates) {
-                // УДАЛЕНА ФИЛЬТРАЦИЯ ПО ДЛИНЕ КЛЮЧА
-                const decrypted = this.decrypt(ciphertext, key, alphabet);
-                if (decrypted.includes(known)) {
-                    const entry = validKeys.get(key) || { positions: [], decrypted };
-                    entry.positions.push(currentPos);
-                    validKeys.set(key, entry);
+class VigenèreAnalyzer {
+    constructor() {
+        this.worker = new Worker('data:text/javascript;base64,' + btoa(`
+            self.onmessage = function(e) {
+                const { ciphertext, known, alphabet, maxKeyLength } = e.data;
+                const mod = alphabet.length;
+                const results = new Map();
+                const knownLength = known.length;
+                
+                for (let pos = 0; pos <= ciphertext.length - knownLength; pos++) {
+                    const fragment = ciphertext.slice(pos, pos + knownLength);
+                    const keyFragment = Array.from({length: knownLength}, (_, i) => {
+                        const cIdx = alphabet.indexOf(fragment[i]);
+                        const pIdx = alphabet.indexOf(known[i]);
+                        return cIdx !== -1 && pIdx !== -1 ? 
+                            alphabet[(cIdx - pIdx + mod) % mod] : null;
+                    }).filter(c => c !== null).join('');
+                    
+                    this.generateKeyCandidates(keyFragment, maxKeyLength).forEach(key => {
+                        const decrypted = this.decrypt(ciphertext, key, alphabet);
+                        if (decrypted.includes(known)) {
+                            const entry = results.get(key) || { positions: [], decrypted };
+                            entry.positions.push(pos);
+                            results.set(key, entry);
+                        }
+                    });
+                    
+                    postMessage({ type: 'progress', current: pos + 1, total: ciphertext.length - knownLength + 1 });
                 }
+                postMessage({ type: 'results', data: Array.from(results.entries()) });
+            };
+
+            function generateKeyCandidates(fragment, maxLen) {
+                const candidates = new Set();
+                for (let len = 1; len <= maxLen; len++) {
+                    const base = fragment.slice(0, len);
+                    if (fragment === base.repeat(Math.ceil(fragment.length / len)).slice(0, fragment.length)) {
+                        candidates.add(base);
+                    }
+                }
+                return Array.from(candidates);
             }
 
-            await update(currentPos + 1, total);
-        }
-        return Array.from(validKeys.entries()).map(([k, v]) => ({ key: k, ...v }));
+            function decrypt(ciphertext, key, alphabet) {
+                return Array.from(ciphertext, (c, i) => {
+                    const cIdx = alphabet.indexOf(c);
+                    const kIdx = alphabet.indexOf(key[i % key.length]);
+                    return cIdx !== -1 && kIdx !== -1 ?
+                        alphabet[(cIdx - kIdx + alphabet.length) % alphabet.length] : '�';
+                }).join('');
+            }
+        `));
+    }
+
+    analyze(params) {
+        return new Promise((resolve, reject) => {
+            this.worker.onmessage = (e) => {
+                if (e.data.type === 'results') resolve(e.data.data);
+                else if (e.data.type === 'progress') {
+                    const progress = (e.data.current / e.data.total) * 100;
+                    document.getElementById('progressBar').style.width = `${progress}%`;
+                    document.getElementById('status').textContent = 
+                        `Processed ${e.data.current} of ${e.data.total} positions (${Math.round(progress)}%)`;
+                }
+            };
+            this.worker.postMessage(params);
+        });
+    }
+
+    terminate() {
+        this.worker.terminate();
     }
 }
 
-async function start() {
-    if (isRunning) return;
-    isRunning = true;
-    document.getElementById('stopBtn').disabled = false;
+let analyzer = null;
 
-    const ciphertext = document.getElementById('ciphertext').value.toUpperCase().replace(/[^A-Z]/g, '');
-    const known = document.getElementById('knownText').value.toUpperCase().replace(/[^A-Z]/g, '');
-    const alphabet = [...new Set(document.getElementById('alphabet').value.toUpperCase().replace(/[^A-Z]/g, ''))].join('');
-    const keyLength = parseInt(document.getElementById('keyLength').value);
-
-    if (alphabet.length !== 26) {
-        alert("Alphabet must have 26 unique characters!");
-        isRunning = false;
-        return;
-    }
-
-    document.getElementById('results').innerHTML = '';
-    const updateProgress = (current, total) => {
-        document.getElementById('progress').innerHTML = `Processed: ${current}/${total}`;
-        return new Promise(resolve => setTimeout(resolve, 0));
-    };
-
+async function startAnalysis() {
     try {
-        const results = await VigenèrePro.process(ciphertext, known, alphabet, keyLength, updateProgress);
+        const ciphertext = cleanInput(document.getElementById('ciphertext').value);
+        const known = cleanInput(document.getElementById('knownText').value);
+        const alphabet = validateAlphabet(document.getElementById('alphabet').value);
+        const maxKeyLength = parseInt(document.getElementById('keyLength').value);
+
+        if (!ciphertext || !known || !alphabet) return;
+
+        showLoadingState(true);
+        analyzer = new VigenèreAnalyzer();
+        
+        const results = await analyzer.analyze({
+            ciphertext,
+            known,
+            alphabet,
+            maxKeyLength
+        });
+
         displayResults(results, known);
+    } catch (error) {
+        showError(error.message);
     } finally {
-        isRunning = false;
-        document.getElementById('stopBtn').disabled = true;
+        showLoadingState(false);
+        analyzer = null;
     }
 }
 
-function stop() {
-    isRunning = false;
+function stopAnalysis() {
+    if (analyzer) analyzer.terminate();
+    showLoadingState(false);
 }
 
-function displayResults(results, known) {
-    const resultsDiv = document.getElementById('results');
-    resultsDiv.innerHTML = results.map(({ key, decrypted, positions }) => `
-        <div class="result">
-            <strong>🔑 ${key}</strong> (length: ${key.length})<br>
-            📍 Positions: ${positions.join(', ')}<br>
-            📜 Decrypted: ${decrypted.replace(new RegExp(known, 'gi'), '<span class="match">$&</span>')}
-        </div>
-        <hr>
-    `).join('');
+// Helper functions
+function cleanInput(str) {
+    return str.toUpperCase().replace(/[^A-Z]/g, '');
+}
+
+function validateAlphabet(alphabet) {
+    const clean = [...new Set(cleanInput(alphabet))].join('');
+    if (clean.length !== 26) {
+        showError('Alphabet must contain exactly 26 unique characters');
+        return null;
+    }
+    return clean;
+}
+
+function showLoadingState(loading) {
+    document.getElementById('analyzeBtn').disabled = loading;
+    document.getElementById('stopBtn').disabled = !loading;
+    document.getElementById('progressBar').style.width = loading ? '0%' : '100%';
+}
+
+function showError(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-message';
+    errorDiv.textContent = message;
+    document.querySelector('.container').prepend(errorDiv);
+    setTimeout(() => errorDiv.remove(), 5000);
+}
+
+function displayResults(results, knownText) {
+    const resultsContainer = document.getElementById('results');
+    resultsContainer.innerHTML = '';
+
+    results.sort((a, b) => a[0].length - b[0].length).forEach(([key, data]) => {
+        const resultDiv = document.createElement('div');
+        resultDiv.className = 'result-item';
+        resultDiv.innerHTML = `
+            <strong>Key: ${key}</strong> (length: ${key.length})<br>
+            <em>Matches found:</em> ${data.positions.length}<br>
+            <div class="decrypted">${highlightMatches(data.decrypted, knownText)}</div>
+        `;
+        resultsContainer.appendChild(resultDiv);
+    });
+}
+
+function highlightMatches(text, match) {
+    const regex = new RegExp(match, 'gi');
+    return text.replace(regex, '<span class="match">$&</span>');
 }
 </script>
 </body>
