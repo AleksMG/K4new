@@ -1,151 +1,170 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const crackBtn = document.getElementById('crackBtn');
-    const verifyBtn = document.getElementById('verifyBtn');
-    const ciphertextEl = document.getElementById('ciphertext');
-    const knownTextEl = document.getElementById('knownText');
-    const alphabetEl = document.getElementById('alphabet');
-    const keyResultsEl = document.getElementById('keyResults');
-    const decryptedEl = document.getElementById('decrypted');
-    const statusEl = document.getElementById('status');
-    const analysisEl = document.getElementById('analysisDetails');
-
-    let worker = new Worker('worker.js');
-    let currentResults = [];
-
-    worker.onmessage = function(e) {
-        const { type, data } = e.data;
+class VigenereCracker {
+    constructor() {
+        this.worker = new Worker('cipher-worker.js');
+        this.currentResults = [];
+        this.selectedKey = null;
         
-        switch(type) {
-            case 'progress':
-                statusEl.innerHTML = `Обработано ${data.progress}% (найдено ключей: ${data.keys})`;
-                break;
-                
-            case 'result':
-                currentResults = data.results.sort((a, b) => b.confidence - a.confidence);
-                updateResultsList();
-                statusEl.innerHTML = `<span class="success">Найдено ${currentResults.length} ключей</span>`;
-                crackBtn.disabled = false;
-                showTopResults();
-                break;
-                
-            case 'error':
-                statusEl.innerHTML = `<span class="warning">Ошибка: ${data.message}</span>`;
-                crackBtn.disabled = false;
-                break;
-        }
-    };
-
-    worker.onerror = function(error) {
-        console.error('Worker error:', error);
-        statusEl.innerHTML = `<span class="warning">Ошибка воркера: ${error.message}</span>`;
-        crackBtn.disabled = false;
-    };
-
-    crackBtn.addEventListener('click', startAnalysis);
-    verifyBtn.addEventListener('click', verifySelectedKey);
-
-    function startAnalysis() {
-        const ciphertext = ciphertextEl.value.trim().toUpperCase();
-        const knownText = knownTextEl.value.trim().toUpperCase();
-        const alphabet = alphabetEl.value.trim().toUpperCase();
-
-        if (!validateInputs(ciphertext, knownText, alphabet)) return;
-
-        resetState();
-        worker.postMessage({ type: 'crack', ciphertext, knownText, alphabet });
+        this.initElements();
+        this.initEvents();
     }
-
-    function validateInputs(ciphertext, knownText, alphabet) {
-        if (!ciphertext || !knownText || !alphabet) {
-            statusEl.innerHTML = '<span class="warning">Заполните все поля!</span>';
-            return false;
-        }
-
-        if (new Set(alphabet).size !== alphabet.length) {
-            statusEl.innerHTML = '<span class="warning">Алфавит содержит дубликаты!</span>';
-            return false;
-        }
-
-        return true;
+    
+    initElements() {
+        this.elements = {
+            ciphertext: document.getElementById('ciphertext'),
+            knownText: document.getElementById('knownText'),
+            alphabet: document.getElementById('alphabet'),
+            analyzeBtn: document.getElementById('analyzeBtn'),
+            bruteBtn: document.getElementById('bruteBtn'),
+            loader: document.getElementById('loader'),
+            keyList: document.getElementById('keyList'),
+            decryptedText: document.getElementById('decryptedText'),
+            stats: document.getElementById('stats'),
+            visualization: document.getElementById('visualization'),
+            tabs: document.querySelectorAll('.tab-btn'),
+            tabContents: document.querySelectorAll('.tab-content')
+        };
     }
-
-    function resetState() {
-        currentResults = [];
-        decryptedEl.value = '';
-        keyResultsEl.innerHTML = '';
-        analysisEl.innerHTML = '';
-        crackBtn.disabled = true;
-        statusEl.innerHTML = 'Начало анализа...';
-    }
-
-    function updateResultsList() {
-        keyResultsEl.innerHTML = '';
-        currentResults.slice(0, 100).forEach(result => {
-            const option = document.createElement('option');
-            option.value = result.key;
-            option.textContent = `${result.key} (${result.key.length} симв.) → доверие: ${result.confidence.toFixed(2)}`;
-            keyResultsEl.appendChild(option);
+    
+    initEvents() {
+        this.elements.analyzeBtn.addEventListener('click', () => this.analyze());
+        this.elements.bruteBtn.addEventListener('click', () => this.smartBruteForce());
+        
+        this.elements.tabs.forEach(tab => {
+            tab.addEventListener('click', () => this.switchTab(tab));
         });
-        verifyBtn.disabled = currentResults.length === 0;
-    }
-
-    function showTopResults() {
-        analysisEl.innerHTML = currentResults.slice(0, 5).map(result => 
-            `<div class="result-item">
-                <strong>${result.key}</strong> (поз. ${result.position})<br>
-                Фрагмент: <span class="fragment">${result.decryptedFragment}</span>
-            </div>`
-        ).join('');
-    }
-
-    function verifySelectedKey() {
-        const selectedKey = keyResultsEl.value;
-        if (!selectedKey) return;
-
-        const ciphertext = ciphertextEl.value.trim().toUpperCase();
-        const alphabet = alphabetEl.value.trim().toUpperCase();
         
-        const decrypted = vigenereDecrypt(ciphertext, selectedKey, alphabet);
-        decryptedEl.value = decrypted;
-        highlightKnownText(decrypted);
+        this.worker.onmessage = (e) => {
+            this.elements.loader.style.display = 'none';
+            
+            if (e.data.type === 'analysis') {
+                this.handleAnalysisResults(e.data.results);
+            } else if (e.data.type === 'brute') {
+                this.handleBruteResults(e.data.results);
+            }
+        };
     }
-
-    function highlightKnownText(decrypted) {
-        const knownText = knownTextEl.value.trim().toUpperCase();
+    
+    switchTab(tab) {
+        const tabId = tab.getAttribute('data-tab');
+        
+        this.elements.tabs.forEach(t => t.classList.remove('active'));
+        this.elements.tabContents.forEach(c => c.classList.remove('active'));
+        
+        tab.classList.add('active');
+        document.getElementById(`${tabId}Tab`).classList.add('active');
+    }
+    
+    analyze() {
+        const ciphertext = this.elements.ciphertext.value.trim();
+        const knownText = this.elements.knownText.value.trim();
+        const alphabet = this.elements.alphabet.value.trim();
+        
+        if (!ciphertext || !knownText || !alphabet) {
+            alert('Please fill all fields');
+            return;
+        }
+        
+        this.elements.loader.style.display = 'block';
+        this.elements.keyList.innerHTML = '';
+        this.elements.bruteBtn.disabled = true;
+        
+        this.worker.postMessage({
+            type: 'analyze',
+            ciphertext,
+            knownText,
+            alphabet
+        });
+    }
+    
+    smartBruteForce() {
+        if (!this.currentResults.length) return;
+        
+        this.elements.loader.style.display = 'block';
+        this.elements.keyList.innerHTML = '';
+        
+        const ciphertext = this.elements.ciphertext.value.trim();
+        const alphabet = this.elements.alphabet.value.trim();
+        
+        this.worker.postMessage({
+            type: 'brute',
+            ciphertext,
+            alphabet,
+            candidates: this.currentResults.slice(0, 10).map(r => r.key)
+        });
+    }
+    
+    handleAnalysisResults(results) {
+        this.currentResults = results;
+        this.elements.bruteBtn.disabled = false;
+        
+        if (!results.length) {
+            this.elements.keyList.innerHTML = '<p>No possible keys found</p>';
+            return;
+        }
+        
+        results.forEach((result, idx) => {
+            const keyItem = document.createElement('div');
+            keyItem.className = `key-item ${idx === 0 ? 'selected' : ''}`;
+            keyItem.innerHTML = `
+                <div class="key-header">
+                    <span class="key-text">${result.key}</span>
+                    <span class="key-score">${result.score.toFixed(2)}</span>
+                </div>
+                <div class="key-details">
+                    Position: ${result.position} | Length: ${result.key.length}<br>
+                    Matches: ${result.matches}
+                </div>
+            `;
+            
+            keyItem.addEventListener('click', () => {
+                document.querySelectorAll('.key-item').forEach(i => i.classList.remove('selected'));
+                keyItem.classList.add('selected');
+                this.showDecryptedText(result.key);
+            });
+            
+            this.elements.keyList.appendChild(keyItem);
+        });
+        
+        // Show first result by default
+        this.showDecryptedText(results[0].key);
+    }
+    
+    handleBruteResults(results) {
+        this.currentResults = results;
+        this.handleAnalysisResults(results);
+    }
+    
+    showDecryptedText(key) {
+        const ciphertext = this.elements.ciphertext.value.trim();
+        const alphabet = this.elements.alphabet.value.trim();
+        const knownText = this.elements.knownText.value.trim();
+        
+        const decrypted = CipherCore.decrypt(ciphertext, key, alphabet);
+        let highlighted = decrypted;
+        
+        // Highlight known text occurrences
         if (knownText) {
-            decryptedEl.innerHTML = decrypted.replace(
-                new RegExp(escapeRegExp(knownText), 
-                '<span class="match">$&</span>'
+            const regex = new RegExp(knownText, 'gi');
+            highlighted = highlighted.replace(regex, match => 
+                `<span class="highlight">${match}</span>`
             );
         }
+        
+        this.elements.decryptedText.innerHTML = highlighted;
+        
+        // Update stats
+        this.elements.stats.innerHTML = `
+            <p><strong>Key:</strong> ${key}</p>
+            <p><strong>Key Length:</strong> ${key.length}</p>
+            <p><strong>Decrypted Length:</strong> ${decrypted.length} characters</p>
+            <p><strong>Known Text Matches:</strong> ${(decrypted.match(new RegExp(knownText, 'gi'))?.length || 0}</p>
+        `;
+        
+        this.selectedKey = key;
     }
+}
 
-    function vigenereDecrypt(ciphertext, key, alphabet) {
-        const n = alphabet.length;
-        let decrypted = '';
-        let keyIndex = 0;
-
-        for (let i = 0; i < ciphertext.length; i++) {
-            const cipherChar = ciphertext[i];
-            const cipherPos = alphabet.indexOf(cipherChar);
-
-            if (cipherPos === -1) {
-                decrypted += cipherChar;
-                continue;
-            }
-
-            const keyChar = key[keyIndex % key.length];
-            const keyPos = alphabet.indexOf(keyChar);
-            const decryptedPos = (cipherPos - keyPos + n) % n;
-            
-            decrypted += alphabet[decryptedPos];
-            keyIndex++;
-        }
-
-        return decrypted;
-    }
-
-    function escapeRegExp(string) {
-        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    new VigenereCracker();
 });
