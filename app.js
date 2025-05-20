@@ -13,7 +13,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentResults = [];
     let worker = new Worker('worker.js');
     
-    // Обработчик сообщений от Web Worker
     worker.onmessage = function(e) {
         const { type, data } = e.data;
         
@@ -25,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'result':
                 currentResults = data.results;
                 updateResultsList();
+                showTopDecryptions();
                 statusEl.innerHTML = `<span class="success">Анализ завершен! Найдено ${currentResults.length} возможных ключей.</span>`;
                 crackBtn.disabled = false;
                 break;
@@ -36,7 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    // Найти все возможные ключи
     crackBtn.addEventListener('click', () => {
         const ciphertext = ciphertextEl.value.trim().toUpperCase();
         const knownText = knownTextEl.value.trim().toUpperCase();
@@ -56,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
         crackBtn.disabled = true;
         currentResults = [];
         updateResultsList();
+        decryptedEl.value = '';
         
         worker.postMessage({
             type: 'crack',
@@ -65,29 +65,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    // Проверить выбранный ключ
     verifyBtn.addEventListener('click', () => {
-        const selectedKey = keyResultsEl.value;
-        if (!selectedKey) return;
+        const selectedIndex = keyResultsEl.selectedIndex;
+        if (selectedIndex === -1) return;
         
+        const selectedResult = currentResults[selectedIndex];
         const ciphertext = ciphertextEl.value.trim().toUpperCase();
         const alphabet = alphabetEl.value.trim().toUpperCase();
         
-        const decrypted = vigenereDecrypt(ciphertext, selectedKey, alphabet);
-        decryptedEl.value = decrypted;
-        
-        // Подсветка известного текста
-        const knownText = knownTextEl.value.trim().toUpperCase();
-        if (decrypted.includes(knownText)) {
-            const highlighted = decrypted.replace(
-                new RegExp(knownText, 'g'), 
-                `<span class="match">${knownText}</span>`
-            );
-            decryptedEl.innerHTML = highlighted;
-        }
+        const decrypted = vigenereDecrypt(ciphertext, selectedResult.key, alphabet);
+        displayDecryptedText(decrypted, selectedResult.position, knownTextEl.value.trim().toUpperCase());
     });
     
-    // Экспорт результатов
     exportBtn.addEventListener('click', () => {
         if (currentResults.length === 0) {
             alert('Нет результатов для экспорта!');
@@ -96,13 +85,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let exportData = `Результаты анализа Kryptos Cracker\n`;
         exportData += `Дата: ${new Date().toLocaleString()}\n`;
-        exportData += `Шифртекст: ${ciphertextEl.value.trim().substring(0, 50)}...\n`;
+        exportData += `Шифртекст: ${ciphertextEl.value.trim()}\n`;
         exportData += `Известный текст: ${knownTextEl.value.trim()}\n`;
         exportData += `Алфавит: ${alphabetEl.value.trim()}\n\n`;
         exportData += `Найденные ключи (${currentResults.length}):\n`;
         
         currentResults.forEach(result => {
-            exportData += `- Ключ "${result.key}" (позиция ${result.position}, доверие ${result.confidence.toFixed(2)})\n`;
+            exportData += `- Ключ "${result.key}" (длина: ${result.key.length}, позиция: ${result.position}, доверие: ${result.confidence.toFixed(2)})\n`;
+            exportData += `  Расшифрованный фрагмент: "${result.decryptedFragment}"\n`;
         });
         
         const blob = new Blob([exportData], { type: 'text/plain' });
@@ -116,23 +106,67 @@ document.addEventListener('DOMContentLoaded', () => {
         URL.revokeObjectURL(url);
     });
     
-    // Обновление списка ключей
     function updateResultsList() {
         keyResultsEl.innerHTML = '';
         
         currentResults.sort((a, b) => b.confidence - a.confidence);
         
-        currentResults.forEach(result => {
+        currentResults.forEach((result, index) => {
             const option = document.createElement('option');
-            option.value = result.key;
-            option.textContent = `"${result.key}" (поз. ${result.position}, доверие: ${result.confidence.toFixed(2)})`;
+            option.value = index;
+            option.textContent = `"${result.key}" (длина: ${result.key.length}, поз. ${result.position}, доверие: ${result.confidence.toFixed(2)})`;
             keyResultsEl.appendChild(option);
         });
         
         verifyBtn.disabled = currentResults.length === 0;
     }
     
-    // Функция расшифровки Виженера
+    function showTopDecryptions() {
+        if (currentResults.length === 0) return;
+        
+        let topResults = currentResults.slice(0, 10);
+        let html = '<h4>Топ-10 расшифровок:</h4><ol>';
+        
+        topResults.forEach(result => {
+            html += `<li>
+                <strong>Ключ "${result.key}"</strong> (длина ${result.key.length}):
+                <div class="fragment">..."${result.decryptedFragment}"...</div>
+                <small>Позиция: ${result.position}, Доверие: ${result.confidence.toFixed(2)}</small>
+            </li>`;
+        });
+        
+        html += '</ol>';
+        analysisEl.innerHTML = html;
+    }
+    
+    function displayDecryptedText(decrypted, position, knownText) {
+        // Показываем полный расшифрованный текст
+        decryptedEl.value = decrypted;
+        
+        // Подсвечиваем известный текст и позицию
+        if (knownText && decrypted.includes(knownText)) {
+            let highlighted = decrypted;
+            
+            // Подсветка всех вхождений известного текста
+            highlighted = highlighted.replace(
+                new RegExp(escapeRegExp(knownText), 
+                `<span class="match">${knownText}</span>`
+            );
+            
+            // Особое выделение основного вхождения
+            const mainMatch = decrypted.substr(position, knownText.length);
+            if (mainMatch === knownText) {
+                highlighted = highlighted.substr(0, position) + 
+                    `<span class="main-match">${mainMatch}</span>` + 
+                    highlighted.substr(position + knownText.length);
+            }
+            
+            decryptedEl.innerHTML = highlighted;
+        } else {
+            decryptedEl.innerHTML = decrypted;
+        }
+    }
+    
     function vigenereDecrypt(ciphertext, key, alphabet) {
         const n = alphabet.length;
         let decrypted = '';
@@ -150,6 +184,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const keyChar = key[keyIndex % key.length];
             const keyPos = alphabet.indexOf(keyChar);
             
+            if (keyPos === -1) {
+                decrypted += '?';
+                keyIndex++;
+                continue;
+            }
+            
             const decryptedPos = (cipherPos - keyPos + n) % n;
             decrypted += alphabet[decryptedPos];
             
@@ -159,7 +199,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return decrypted;
     }
     
-    // Обработчик выбора ключа
+    function escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    
     keyResultsEl.addEventListener('change', () => {
         verifyBtn.disabled = keyResultsEl.selectedIndex === -1;
     });
