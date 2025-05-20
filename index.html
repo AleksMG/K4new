@@ -118,7 +118,8 @@ class VigenèrePro {
                 if (key.length !== keyLength) continue;
 
                 const decrypted = this.decrypt(ciphertext, key, alphabet);
-                if (decrypted.includes(known)) {
+                const matchPos = decrypted.indexOf(known);
+                if (matchPos !== -1) {
                     const entry = validKeys.get(key) || { positions: [], decrypted };
                     entry.positions.push(currentPos);
                     validKeys.set(key, entry);
