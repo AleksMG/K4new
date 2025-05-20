@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Advanced Vigenère Cracker</title>
+    <title>Vigenère Cracker Ultimate</title>
     <style>
         :root {
             --bg-color: #1a1a1a;
@@ -72,7 +72,7 @@
 let isRunning = false;
 let currentPos = 0;
 
-class VigenèreExpert {
+class VigenèrePro {
     static decrypt(ciphertext, key, alphabet) {
         const mod = alphabet.length;
         return [...ciphertext].map((c, i) => {
@@ -85,15 +85,14 @@ class VigenèreExpert {
         }).join('');
     }
 
-    static generateKeyPatterns(fragment, targetLength) {
-        const patterns = new Set();
-        for (let len = 1; len <= targetLength; len++) {
+    static generateKeyVariants(fragment, targetLen) {
+        const variants = new Set();
+        for (let len = 1; len <= targetLen; len++) {
             const base = fragment.slice(0, len);
-            if (base.repeat(Math.ceil(fragment.length / len)).startsWith(fragment)) {
-                patterns.add(base);
-            }
+            const repeated = base.repeat(Math.ceil(fragment.length / len)).slice(0, fragment.length);
+            if (repeated === fragment) variants.add(base);
         }
-        return Array.from(patterns);
+        return Array.from(variants);
     }
 
     static async process(ciphertext, known, alphabet, keyLength, update) {
@@ -114,9 +113,7 @@ class VigenèreExpert {
                     : null;
             }).filter(c => c !== null).join('');
 
-            if (keyFragment.length !== knownLen) continue;
-
-            const candidates = this.generateKeyPatterns(keyFragment, keyLength);
+            const candidates = this.generateKeyVariants(keyFragment, keyLength);
             for (const key of candidates) {
                 if (key.length !== keyLength) continue;
 
@@ -157,7 +154,7 @@ async function start() {
     };
 
     try {
-        const results = await VigenèreExpert.process(ciphertext, known, alphabet, keyLength, updateProgress);
+        const results = await VigenèrePro.process(ciphertext, known, alphabet, keyLength, updateProgress);
         displayResults(results, known);
     } finally {
         isRunning = false;
