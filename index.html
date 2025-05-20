@@ -1,175 +1,177 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>CryptoPro Analyzer</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body { font-family: monospace; background: #0a0a0a; color: #00ff00; padding: 20px; }
-        .container { max-width: 1200px; margin: auto; }
-        textarea, button, pre { 
-            background: #000; color: #0f0; border: 1px solid #0f0; 
-            width: 100%; margin: 10px 0; padding: 10px;
-        }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        canvas { background: #000; }
-        .hypothesis { border: 1px solid #0f0; padding: 15px; margin: 10px 0; }
-    </style>
+  <title>Real Cipher Breaker</title>
+  <style>
+    body { font-family: monospace; max-width: 800px; margin: 0 auto; padding: 20px; }
+    textarea { width: 100%; height: 100px; }
+    #results { margin-top: 20px; }
+    .result { background: #f5f5f5; padding: 10px; margin: 5px 0; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🛠️ CryptoPro Analyzer</h1>
-        <textarea id="ciphertext" rows="5" placeholder="Ciphertext..."></textarea>
-        <button onclick="startAnalysis()">Analyze</button>
-        <div class="grid">
-            <div id="results"></div>
-            <canvas id="chart"></canvas>
-        </div>
-    </div>
+  <h1>Real Cipher Breaker</h1>
+  <textarea id="input" placeholder="Вставьте зашифрованный текст..."></textarea>
+  <button onclick="breakCipher()">Взломать</button>
+  <div id="results"></div>
 
 <script>
-const CryptoPro = {
-    // 1. Метод Касиски для Виженера
-    kasiski: (text, gramSize = 3) => {
-        const grams = {};
-        for (let i = 0; i < text.length - gramSize + 1; i++) {
-            const gram = text.slice(i, i + gramSize);
-            grams[gram] = grams[gram] ? [...grams[gram], i] : [i];
-        }
-        
-        const distances = [];
-        for (const gram in grams) {
-            if (grams[gram].length > 1) {
-                for (let i = 1; i < grams[gram].length; i++) {
-                    distances.push(grams[gram][i] - grams[gram][i-1]);
-                }
-            }
-        }
-        
-        const factors = {};
-        distances.forEach(d => {
-            for (let i = 2; i <= 20; i++) {
-                if (d % i === 0) factors[i] = (factors[i] || 0) + 1;
-            }
-        });
-        
-        return Object.entries(factors).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
-    },
+// ■■■■■■■■■■■■■■■■■■ ЯДРО АНАЛИЗАТОРА ■■■■■■■■■■■■■■■■■■
+class CipherBreaker {
+  constructor() {
+    this.englishFreq = this._createFreqMap();
+  }
 
-    // 2. Транспозиция с автоподбором матриц
-    transpose: (text, rows, cols) => {
-        const matrix = Array.from({ length: rows }, () => []);
-        for (let i = 0; i < text.length; i++) {
-            matrix[i % rows].push(text[i]);
-        }
-        return matrix.flat().join('');
-    },
-
-    // 3. Частотный анализ и N-граммы
-    frequency: (text) => {
-        const freq = {};
-        for (const c of text) freq[c] = (freq[c] || 0) + 1;
-        return Object.entries(freq).sort((a, b) => b[1] - a[1]);
-    },
-
-    ngrams: (text, n = 2) => {
-        const grams = {};
-        for (let i = 0; i < text.length - n + 1; i++) {
-            const gram = text.slice(i, i + n);
-            grams[gram] = (grams[gram] || 0) + 1;
-        }
-        return Object.entries(grams).sort((a, b) => b[1] - a[1]);
-    },
-
-    // 4. XOR-брутфорс
-    xorBrute: (cipher, sample = ' the ') => {
-        const keys = [];
-        for (let key = 1; key < 256; key++) {
-            const decoded = cipher.split('').map(c => 
-                String.fromCharCode(c.charCodeAt(0) ^ key)
-            ).join('');
-            if (decoded.includes(sample)) {
-                keys.push({ key: key.toString(16), decoded });
-            }
-        }
-        return keys;
-    },
-
-    // 5. Декодирование Base64/HEX
-    decode: (text, enc) => {
-        try {
-            if (enc === 'base64') return atob(text);
-            if (enc === 'hex') return text.match(/.{1,2}/g)?.map(v => 
-                String.fromCharCode(parseInt(v, 16))).join('') || '';
-        } catch(e) { return null; }
-        return text;
-    }
-};
-
-function startAnalysis() {
-    const cipher = document.getElementById('ciphertext').value;
-    const resultsDiv = document.getElementById('results');
-    resultsDiv.innerHTML = '';
-
-    // 1. Проверка кодировок
-    ['base64', 'hex'].forEach(enc => {
-        const decoded = CryptoPro.decode(cipher, enc);
-        if (decoded && decoded !== cipher) {
-            resultsDiv.innerHTML += `
-                <div class="hypothesis">
-                    <strong>ENCODING (${enc})</strong><br>
-                    Decoded: <pre>${decoded.slice(0, 100)}</pre>
-                </div>
-            `;
-        }
-    });
-
-    // 2. Метод Касиски
-    const keyLen = CryptoPro.kasiski(cipher);
-    if (keyLen) {
-        resultsDiv.innerHTML += `
-            <div class="hypothesis">
-                <strong>VIGENERE</strong><br>
-                Possible key length: ${keyLen}
-            </div>
-        `;
-    }
-
-    // 3. Транспозиция
-    const matrices = [2, 3, 4, 5].map(rows => ({
-        rows,
-        cols: Math.ceil(cipher.length / rows),
-        text: CryptoPro.transpose(cipher, rows, Math.ceil(cipher.length / rows))
-    }));
+  // Основной метод
+  analyze(text) {
+    const results = [];
     
-    matrices.forEach(m => {
-        resultsDiv.innerHTML += `
-            <div class="hypothesis">
-                <strong>TRANSPOSITION (${m.rows}x${m.cols})</strong><br>
-                Candidate: <pre>${m.text.slice(0, 100)}</pre>
-            </div>
-        `;
-    });
-
-    // 4. Частотный анализ
-    const freq = CryptoPro.frequency(cipher);
-    new Chart(document.getElementById('chart').getContext('2d'), {
-        type: 'bar',
-        data: {
-            labels: freq.map(d => d[0]),
-            datasets: [{ label: 'Frequency', data: freq.map(d => d[1]) }]
-        }
-    });
-
-    // 5. XOR-брутфорс
-    const xorKeys = CryptoPro.xorBrute(cipher);
-    if (xorKeys.length > 0) {
-        resultsDiv.innerHTML += `
-            <div class="hypothesis">
-                <strong>XOR</strong><br>
-                Possible keys: ${xorKeys.map(k => `0x${k.key}`).join(', ')}
-            </div>
-        `;
+    // 1. Проверка Base64
+    const base64 = this._testBase64(text);
+    if (base64) results.push(base64);
+    
+    // 2. Анализ Цезаря
+    results.push(...this._breakCaesar(text));
+    
+    // 3. Виженер (только для длинных текстов)
+    if (text.length > 20) {
+      results.push(this._breakVigenere(text));
     }
+    
+    // 4. XOR-анализ
+    results.push(...this._breakXor(text));
+    
+    // Сортировка по качеству
+    return results.sort((a, b) => b.confidence - a.confidence);
+  }
+
+  // ■■■■■■■■■■■■■■■■■■ МЕТОДЫ ВЗЛОМА ■■■■■■■■■■■■■■■■■■
+  _breakCaesar(text) {
+    const results = [];
+    for (let shift = 1; shift < 26; shift++) {
+      let decrypted = "";
+      for (const char of text) {
+        if (/[A-Z]/i.test(char)) {
+          const base = char === char.toUpperCase() ? 65 : 97;
+          const code = ((char.charCodeAt(0) - base - shift + 26) % 26) + base;
+          decrypted += String.fromCharCode(code);
+        } else {
+          decrypted += char;
+        }
+      }
+      const confidence = this._rateText(decrypted);
+      if (confidence > 50 || shift === 13) { // Всегда показываем ROT13
+        results.push({
+          method: `Caesar Shift ${shift}`,
+          result: decrypted,
+          confidence: confidence
+        });
+      }
+    }
+    return results;
+  }
+
+  _breakVigenere(text) {
+    const keyLength = this._findKeyLength(text);
+    let key = '';
+    
+    for (let i = 0; i < keyLength; i++) {
+      let segment = "";
+      for (let j = i; j < text.length; j += keyLength) {
+        const char = text[j].toUpperCase();
+        if (/[A-Z]/.test(char)) segment += char;
+      }
+      
+      // Частотный анализ для сегмента
+      const bestShift = this._findBestShift(segment);
+      key += String.fromCharCode(65 + bestShift);
+    }
+    
+    return {
+      method: "Vigenère (Key: " + key + ")",
+      result: this._vigenereDecrypt(text, key),
+      confidence: this._rateText(this._vigenereDecrypt(text, key))
+    };
+  }
+
+  _breakXor(text) {
+    const results = [];
+    for (let key = 32; key < 127; key++) {
+      let decrypted = "";
+      for (let i = 0; i < text.length; i++) {
+        decrypted += String.fromCharCode(text.charCodeAt(i) ^ key);
+      }
+      const confidence = this._rateText(decrypted);
+      if (confidence > 60) {
+        results.push({
+          method: `XOR (Key ${key})`,
+          result: decrypted,
+          confidence: confidence
+        });
+      }
+    }
+    return results;
+  }
+
+  // ■■■■■■■■■■■■■■■■■■ ВСПОМОГАТЕЛЬНЫЕ ■■■■■■■■■■■■■■■■■■
+  _findBestShift(text) {
+    const freq = this._calcFrequency(text);
+    let bestShift = 0;
+    let minDiff = Infinity;
+    
+    for (let shift = 0; shift < 26; shift++) {
+      let diff = 0;
+      for (let i = 0; i < 26; i++) {
+        const expected = this.englishFreq[String.fromCharCode(65 + i)] || 0;
+        diff += Math.abs(freq[i] - expected);
+      }
+      if (diff < minDiff) {
+        minDiff = diff;
+        bestShift = shift;
+      }
+    }
+    return bestShift;
+  }
+
+  _rateText(text) {
+    const commonWords = ["THE", "AND", "THAT", "HAVE"];
+    let score = 0;
+    const upper = text.toUpperCase();
+    
+    // Проверка общих слов
+    for (const word of commonWords) {
+      if (upper.includes(word)) score += word.length * 2;
+    }
+    
+    // Частотный анализ
+    const freq = this._calcFrequency(upper);
+    for (let i = 0; i < 26; i++) {
+      const char = String.fromCharCode(65 + i);
+      score += 1 - Math.abs((this.englishFreq[char] || 0) - freq[i]) / 100;
+    }
+    
+    return Math.min(100, Math.max(0, score));
+  }
+}
+
+// ■■■■■■■■■■■■■■■■■■ ГОТОВЫЕ ФУНКЦИИ ■■■■■■■■■■■■■■■■■■
+function breakCipher() {
+  const input = document.getElementById('input').value;
+  const breaker = new CipherBreaker();
+  const results = breaker.analyze(input);
+  
+  const resultsDiv = document.getElementById('results');
+  resultsDiv.innerHTML = '';
+  
+  results.slice(0, 5).forEach(result => {
+    const div = document.createElement('div');
+    div.className = 'result';
+    div.innerHTML = `
+      <strong>${result.method}</strong> (${Math.round(result.confidence)}%)<br>
+      ${result.result}
+    `;
+    resultsDiv.appendChild(div);
+  });
 }
 </script>
 </body>
