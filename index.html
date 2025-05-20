@@ -96,42 +96,38 @@ class VigenèrePro {
     }
 
     static async process(ciphertext, known, alphabet, keyLength, update) {
-        const validKeys = new Map();
-        const knownLen = known.length;
-        const total = ciphertext.length - knownLen;
+    const validKeys = new Map();
+    const knownLen = known.length;
+    const total = ciphertext.length - knownLen;
 
-        for (currentPos = 0; currentPos <= total; currentPos++) {
-            if (!isRunning) break;
+    for (currentPos = 0; currentPos <= total; currentPos++) {
+        if (!isRunning) break;
 
-            const cipherFragment = ciphertext.slice(currentPos, currentPos + knownLen);
-            const keyFragment = [...known].map((pChar, i) => {
-                const c = cipherFragment[i];
-                const pIdx = alphabet.indexOf(pChar);
-                const cIdx = alphabet.indexOf(c);
-                return (pIdx !== -1 && cIdx !== -1) 
-                    ? alphabet[(cIdx - pIdx + alphabet.length) % alphabet.length]
-                    : null;
-            }).filter(c => c !== null).join('');
+        const cipherFragment = ciphertext.slice(currentPos, currentPos + knownLen);
+        const keyFragment = [...known].map((pChar, i) => {
+            const c = cipherFragment[i];
+            const pIdx = alphabet.indexOf(pChar);
+            const cIdx = alphabet.indexOf(c);
+            return (pIdx !== -1 && cIdx !== -1) 
+                ? alphabet[(cIdx - pIdx + alphabet.length) % alphabet.length]
+                : null;
+        }).filter(c => c !== null).join('');
 
-            const candidates = this.generateKeyVariants(keyFragment, keyLength);
-            for (const key of candidates) {
-                if (key.length !== keyLength) continue;
-
-                const decrypted = this.decrypt(ciphertext, key, alphabet);
-                const matchPos = decrypted.indexOf(known);
-                if (matchPos !== -1) {
-                    const entry = validKeys.get(key) || { positions: [], decrypted };
-                    entry.positions.push(currentPos);
-                    validKeys.set(key, entry);
-                }
+        const candidates = this.generateKeyVariants(keyFragment, keyLength);
+        for (const key of candidates) {
+            // УБРАН ФИЛЬТР ПО ДЛИНЕ КЛЮЧА
+            const decrypted = this.decrypt(ciphertext, key, alphabet);
+            if (decrypted.includes(known)) {
+                const entry = validKeys.get(key) || { positions: [], decrypted };
+                entry.positions.push(currentPos);
+                validKeys.set(key, entry);
             }
-
-            await update(currentPos + 1, total);
         }
-        return Array.from(validKeys.entries()).map(([k, v]) => ({ key: k, ...v }));
-    }
-}
 
+        await update(currentPos + 1, total);
+    }
+    return Array.from(validKeys.entries()).map(([k, v]) => ({ key: k, ...v }));
+    }
 async function start() {
     if (isRunning) return;
     isRunning = true;
