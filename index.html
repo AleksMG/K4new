@@ -3,51 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kryptos K4 Cracker</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Vigenère Cracker</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>Kryptos Vigenère Cracker</h1>
+        <h1>Vigenère Cipher Cracker</h1>
         
         <div class="input-group">
-            <label for="ciphertext">Шифртекст:</label>
-            <textarea id="ciphertext" rows="3">OBKRUOXOGHULBSOLIFBBWFLRVQQPRNGKSSOTWTQSJQSSEKZZWATJKLUDIAWINFBNYPVTTMZFPKWGDKZXTJCDIGKUHUAUEKCAR</textarea>
+            <label for="ciphertext">Ciphertext:</label>
+            <textarea id="ciphertext" rows="4" placeholder="Enter ciphertext..."></textarea>
         </div>
         
         <div class="input-row">
             <div class="input-group">
-                <label for="knownText">Известный текст:</label>
-                <input type="text" id="knownText" value="BERLIN">
+                <label for="knownText">Known Plaintext:</label>
+                <input type="text" id="knownText" placeholder="e.g. BERLIN">
             </div>
             
             <div class="input-group">
-                <label for="alphabet">Алфавит:</label>
+                <label for="alphabet">Custom Alphabet:</label>
                 <input type="text" id="alphabet" value="KRYPTOSABCDEFGHIJLMNQUVWXZ">
             </div>
         </div>
         
-        <div class="actions">
-            <button id="crackBtn">Найти все ключи</button>
-            <button id="verifyBtn" disabled>Проверить ключ</button>
+        <div class="controls">
+            <button id="analyzeBtn">Analyze</button>
+            <button id="bruteBtn" disabled>Smart Brute Force</button>
+            <div class="loader" id="loader" style="display: none;"></div>
         </div>
         
         <div class="results">
-            <div class="result-group">
-                <label for="keyResults">Найденные ключи:</label>
-                <select id="keyResults" size="5" multiple></select>
+            <h2>Results</h2>
+            <div class="result-tabs">
+                <button class="tab-btn active" data-tab="keys">Possible Keys</button>
+                <button class="tab-btn" data-tab="decrypted">Decrypted Text</button>
+                <button class="tab-btn" data-tab="analysis">Analysis</button>
             </div>
             
-            <div class="result-group">
-                <label for="decrypted">Результат расшифровки:</label>
-                <textarea id="decrypted" rows="5" readonly></textarea>
+            <div id="keysTab" class="tab-content active">
+                <div class="key-list" id="keyList"></div>
+            </div>
+            
+            <div id="decryptedTab" class="tab-content">
+                <textarea id="decryptedText" readonly rows="10"></textarea>
+            </div>
+            
+            <div id="analysisTab" class="tab-content">
+                <div id="stats"></div>
+                <div class="visualization" id="visualization"></div>
             </div>
         </div>
-        
-        <div id="status"></div>
-        <div class="details" id="analysisDetails"></div>
     </div>
 
+    <script src="cipher-core.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
