@@ -1,6 +1,6 @@
 class VigenereCracker {
     constructor() {
-        this.worker = new Worker('cipher-worker.js');
+        this.worker = new Worker('worker.js');
         this.currentResults = [];
         this.selectedKey = null;
         
