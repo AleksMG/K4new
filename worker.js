@@ -1,116 +1,88 @@
-importScripts('cipher-core.js');
-
-self.onmessage = function(e) {
-    const { type } = e.data;
-    
-    if (type === 'analyze') {
-        const results = analyzeCipher(e.data.ciphertext, e.data.knownText, e.data.alphabet);
-        self.postMessage({ type: 'analysis', results });
-    } 
-    else if (type === 'brute') {
-        const results = smartBruteForce(e.data.ciphertext, e.data.alphabet, e.data.candidates);
-        self.postMessage({ type: 'brute', results });
-    }
-};
-
-function analyzeCipher(ciphertext, knownText, alphabet) {
+self.addEventListener('message', (e) => {
+    const { ciphertext, knownText, alphabet } = e.data;
     const results = [];
-    
-    // Find all possible positions of known text in ciphertext
-    for (let i = 0; i <= ciphertext.length - knownText.length; i++) {
-        const possibleKey = CipherCore.reverseEngineerKey(
-            ciphertext.substr(i, knownText.length),
-            knownText,
-            alphabet
-        );
-        
-        if (possibleKey) {
-            // Decrypt full text with this potential key
-            const decrypted = CipherCore.decrypt(ciphertext, possibleKey, alphabet);
-            
-            // Score the key based on various factors
-            const score = scoreKey(possibleKey, decrypted, knownText);
-            
-            results.push({
-                key: possibleKey,
-                position: i,
-                decrypted,
-                score,
-                matches: (decrypted.match(new RegExp(knownText, 'gi'))?.length || 0
-            });
+    const totalPositions = ciphertext.length - knownText.length;
+    const startTime = Date.now();
+
+    try {
+        for (let position = 0; position <= totalPositions; position++) {
+            const key = this.calculatePotentialKey(position, ciphertext, knownText, alphabet);
+            if (key) {
+                results.push({
+                    value: key,
+                    position,
+                    confidence: this.calculateKeyConfidence(key, alphabet)
+                });
+            }
+
+            if (Date.now() - startTime > 5000) { // Prevent infinite loops
+                throw new Error('Processing timeout');
+            }
+
+            if (position % 100 === 0) {
+                self.postMessage({
+                    type: 'progress',
+                    data: {
+                        processed: position,
+                        total: totalPositions
+                    }
+                });
+            }
         }
-    }
-    
-    // Sort by score (descending)
-    return results.sort((a, b) => b.score - a.score);
-}
 
-function smartBruteForce(ciphertext, alphabet, candidates) {
-    const results = [];
-    
-    // For each candidate key, try variations
-    candidates.forEach(baseKey => {
-        // Try different key lengths by repeating or truncating
-        const variations = generateKeyVariations(baseKey, 3);
-        
-        variations.forEach(variant => {
-            const decrypted = CipherCore.decrypt(ciphertext, varient, alphabet);
-            const score = scoreKey(variant, decrypted);
-            
-            results.push({
-                key: variant,
-                decrypted,
-                score,
-                matches: 0 // Not tracking known text matches here
-            });
+        self.postMessage({
+            type: 'result',
+            data: {
+                keys: results.sort((a, b) => b.confidence - a.confidence),
+                decrypted: this.decryptFullText(ciphertext, results[0]?.value || '', alphabet)
+            }
         });
-    });
-    
-    return results.sort((a, b) => b.score - a.score);
-}
+    } catch (error) {
+        self.postMessage({
+            type: 'error',
+            data: { message: error.message }
+        });
+    }
+});
 
-function generateKeyVariations(baseKey, maxLengthDiff = 2) {
-    const variations = [baseKey];
-    const baseLength = baseKey.length;
+function calculatePotentialKey(position, ciphertext, knownText, alphabet) {
+    const mod = alphabet.length;
+    let key = '';
     
-    // Generate shorter keys
-    for (let i = 1; i <= maxLengthDiff; i++) {
-        if (baseLength - i > 0) {
-            variations.push(baseKey.substring(0, baseLength - i));
-        }
+    for (let i = 0; i < knownText.length; i++) {
+        const cipherChar = ciphertext[position + i];
+        const knownChar = knownText[i];
+        
+        const cipherIndex = alphabet.indexOf(cipherChar);
+        const knownIndex = alphabet.indexOf(knownChar);
+        
+        if (cipherIndex === -1 || knownIndex === -1) return null;
+        
+        const keyIndex = (cipherIndex - knownIndex + mod) % mod;
+        key += alphabet[keyIndex];
     }
     
-    // Generate longer keys by repeating
-    for (let i = 1; i <= maxLengthDiff; i++) {
-        variations.push(baseKey.repeat(Math.ceil((baseLength + i) / baseLength)).substring(0, baseLength + i));
-    }
-    
-    return variations;
+    return key;
 }
 
-function scoreKey(key, decryptedText, knownText = '') {
+function calculateKeyConfidence(key, alphabet) {
+    const uniqueChars = new Set(key).size;
+    const commonChars = new Set(['K', 'R', 'Y', 'P', 'T', 'O', 'S']); // Kryptos-specific
     let score = 0;
     
-    // 1. Shorter keys are better (if they produce good results)
-    score += (1 / key.length) * 10;
+    // Length heuristic
+    score += Math.min(1, 5 / key.length) * 0.4;
     
-    // 2. More known text matches is better
-    if (knownText) {
-        const matches = (decryptedText.match(new RegExp(knownText, 'gi'))?.length || 0;
-        score += matches * 5;
-    }
+    // Uniqueness heuristic
+    score += (uniqueChars / key.length) * 0.3;
     
-    // 3. Higher ratio of alphabetic characters is better
-    const alphaChars = decryptedText.replace(/[^a-zA-Z]/g, '').length;
-    score += (alphaChars / decryptedText.length) * 20;
+    // Common characters heuristic
+    score += (Array.from(key).filter(c => commonChars.has(c)).length / key.length) * 0.3;
     
-    // 4. Higher ratio of lowercase letters (more likely to be plaintext)
-    const lowerChars = decryptedText.replace(/[^a-z]/g, '').length;
-    score += (lowerChars / decryptedText.length) * 10;
-    
-    // 5. Higher ratio of space characters (if present)
-    const spaceCount = decryptedText.split(' ').length - 1;
-    score += (spaceCount / decryptedText.length) * 15;
-    
-    return score;
+    return Math.min(1, score);
+}
+
+function decryptFullText(ciphertext, key, alphabet) {
+    if (!key) return '';
+    return VigenereCracker.decrypt(ciphertext, key, alphabet);
 }
