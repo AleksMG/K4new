@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>True Vigenère Reverse Engineering</title>
+    <title>Precise Vigenère Cracker</title>
     <style>
         :root {
             --bg-color: #1a1a1a;
@@ -38,8 +38,13 @@
             background: var(--match-bg);
             padding: 2px;
         }
-        .warning {
-            color: #ffa726;
+        .progress {
+            color: #00bcd4;
+            margin: 1rem 0;
+        }
+        #controls {
+            display: flex;
+            gap: 0.5rem;
         }
     </style>
 </head>
@@ -50,8 +55,12 @@
             <textarea id="ciphertext" rows="6">OBKRUOXOGHULBSOLIFBBWFLRVQQPRNGKSSOTWTQSJQSSEKZZWATJKLUDIAWINFBNYPVTTMZFPKWGDKZXTJCDIGKUHUAUEKCAR</textarea>
             <input id="knownText" type="text" value="EAST" placeholder="Known plaintext">
             <input id="alphabet" type="text" value="KRYPTOSABCDEFGHIJLMNQUVWXZ" placeholder="Alphabet">
-            <input id="maxKeyLen" type="number" value="10" min="1" placeholder="Max key length">
-            <button onclick="start()">Analyze</button>
+            <input id="keyLength" type="number" value="4" min="1" placeholder="Key length">
+            <div id="controls">
+                <button onclick="start()">Start</button>
+                <button onclick="stop()" id="stopBtn" disabled>Stop</button>
+            </div>
+            <div id="progress" class="progress"></div>
         </div>
         <div class="panel">
             <h2>Results</h2>
@@ -60,7 +69,11 @@
     </div>
 
 <script>
-class VigenèreSolver {
+let isRunning = false;
+let currentPos = 0;
+let results = [];
+
+class PreciseSolver {
     static decrypt(ciphertext, key, alphabet) {
         return Array.from(ciphertext).map((c, i) => {
             const keyChar = key[i % key.length];
@@ -70,90 +83,89 @@ class VigenèreSolver {
         }).join('');
     }
 
-    static findKeys(ciphertext, known, alphabet, maxKeyLen) {
-        const candidates = new Map();
-        const n = ciphertext.length - known.length;
+    static async findExactKeys(ciphertext, known, alphabet, keyLength, updateProgress) {
+        const validKeys = new Set();
+        const totalPositions = ciphertext.length - known.length;
         
-        // Этап 1: Найти все возможные фрагменты ключа
-        for (let pos = 0; pos <= n; pos++) {
-            const keyFragment = Array.from(known).map((pChar, i) => {
+        for (let pos = 0; pos <= totalPositions; pos++) {
+            if (!isRunning) break;
+            
+            const key = Array.from(known).map((pChar, i) => {
                 const c = ciphertext[pos + i];
                 const pIdx = alphabet.indexOf(pChar);
                 const cIdx = alphabet.indexOf(c);
                 return (pIdx !== -1 && cIdx !== -1)
                     ? alphabet[(cIdx - pIdx + alphabet.length) % alphabet.length]
                     : null;
-            });
+            }).filter(c => c !== null).join('');
+
+            if (key.length !== keyLength) continue;
             
-            if (keyFragment.every(c => c !== null)) {
-                const keyStr = keyFragment.join('');
-                if (!candidates.has(keyStr)) {
-                    candidates.set(keyStr, { positions: [pos], count: 1 });
-                } else {
-                    candidates.get(keyStr).positions.push(pos);
-                    candidates.get(keyStr).count++;
-                }
+            const decrypted = this.decrypt(ciphertext, key, alphabet);
+            if (decrypted.includes(known)) {
+                validKeys.add(key);
+                await new Promise(resolve => setTimeout(resolve, 0));
+                updateProgress(pos + 1, totalPositions, validKeys.size);
             }
         }
-
-        // Этап 2: Комбинирование фрагментов ключей
-        const validKeys = [];
-        for (const [key, data] of candidates) {
-            if (key.length > maxKeyLen) continue;
-            
-            // Проверка повторяющегося паттерна
-            let isRepeating = false;
-            for (let len = 1; len <= key.length/2; len++) {
-                const pattern = key.slice(0, len);
-                if (key === pattern.repeat(Math.ceil(key.length/len)).slice(0, key.length)) {
-                    isRepeating = true;
-                    break;
-                }
-            }
-            
-            if (!isRepeating) {
-                validKeys.push({
-                    key,
-                    positions: data.positions,
-                    score: data.count * key.length
-                });
-            }
-        }
-
-        // Сортировка по качеству ключа
-        return validKeys.sort((a, b) => b.score - a.score);
+        
+        return Array.from(validKeys);
     }
 }
 
-function start() {
+async function start() {
+    if (isRunning) return;
+    isRunning = true;
+    document.getElementById('stopBtn').disabled = false;
+    
     const ciphertext = document.getElementById('ciphertext').value.toUpperCase();
     const known = document.getElementById('knownText').value.toUpperCase();
     const alphabet = [...new Set(document.getElementById('alphabet').value.toUpperCase())].join('');
-    const maxKeyLen = parseInt(document.getElementById('maxKeyLen').value) || 10;
+    const keyLength = parseInt(document.getElementById('keyLength').value);
 
     if (alphabet.length !== 26) {
         alert("Alphabet must contain exactly 26 unique characters!");
         return;
     }
 
-    const results = VigenèreSolver.findKeys(ciphertext, known, alphabet, maxKeyLen);
-    displayResults(results, ciphertext, alphabet, known);
+    results = [];
+    currentPos = 0;
+    document.getElementById('results').innerHTML = '';
+    
+    const updateProgress = (current, total, found) => {
+        document.getElementById('progress').innerHTML = 
+            `Processed: ${current}/${total} positions<br>Found keys: ${found}`;
+    };
+
+    const validKeys = await PreciseSolver.findExactKeys(
+        ciphertext, 
+        known, 
+        alphabet, 
+        keyLength,
+        updateProgress
+    );
+
+    displayResults(validKeys, ciphertext, alphabet, known);
+    isRunning = false;
+    document.getElementById('stopBtn').disabled = true;
 }
 
-function displayResults(results, ciphertext, alphabet, known) {
+function stop() {
+    isRunning = false;
+    document.getElementById('stopBtn').disabled = true;
+}
+
+function displayResults(keys, ciphertext, alphabet, known) {
     const resultsDiv = document.getElementById('results');
-    resultsDiv.innerHTML = results.length === 0 
-        ? '<div class="warning">No valid keys found!</div>'
-        : results.map(({key, positions}) => {
-            const decrypted = VigenèreSolver.decrypt(ciphertext, key, alphabet);
-            return `
-                <div style="margin-bottom: 2rem;">
-                    <strong>🔑 ${key}</strong> (length: ${key.length})<br>
-                    📍 Matches at: ${positions.join(', ')}<br>
-                    📜 Decrypted: ${highlight(decrypted, known)}
-                </div>
-            `;
-        }).join('');
+    resultsDiv.innerHTML = keys.map(key => {
+        const decrypted = PreciseSolver.decrypt(ciphertext, key, alphabet);
+        return `
+            <div style="margin-bottom: 2rem;">
+                <strong>🔑 ${key}</strong> (length: ${key.length})<br>
+                📜 Decrypted: ${highlight(decrypted, known)}
+            </div>
+        `;
+    }).join('');
 }
 
 function highlight(text, phrase) {
