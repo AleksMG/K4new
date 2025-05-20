@@ -1,121 +1,146 @@
-:root {
-    --primary-color: #2c3e50;
-    --secondary-color: #3498db;
-    --background-color: #f8f9fa;
-    --error-color: #e74c3c;
-    --success-color: #27ae60;
+class VigenereCracker {
+    constructor() {
+        this.worker = new Worker('worker.js');
+        this.initializeUI();
+    }
+
+    initializeUI() {
+        this.analyzeBtn = document.getElementById('analyzeBtn');
+        this.statusElement = document.getElementById('status');
+        this.keyList = document.getElementById('keyList');
+        this.decryptedText = document.getElementById('decryptedText');
+        
+        this.analyzeBtn.addEventListener('click', () => this.startAnalysis());
+        
+        this.worker.onmessage = (e) => this.handleWorkerMessage(e);
+        this.worker.onerror = (error) => this.handleWorkerError(error);
+    }
+
+    startAnalysis() {
+        const params = this.getInputParams();
+        if (!this.validateInput(params)) return;
+
+        this.clearResults();
+        this.setLoadingState(true);
+        this.worker.postMessage(params);
+    }
+
+    getInputParams() {
+        return {
+            ciphertext: document.getElementById('ciphertext').value.trim().toUpperCase(),
+            knownText: document.getElementById('knownText').value.trim().toUpperCase(),
+            alphabet: document.getElementById('alphabet').value.trim().toUpperCase()
+        };
+    }
+
+    validateInput({ ciphertext, knownText, alphabet }) {
+        if (!ciphertext || !knownText || !alphabet) {
+            this.showError('All fields are required');
+            return false;
+        }
+
+        if (new Set(alphabet).size !== alphabet.length) {
+            this.showError('Alphabet must contain unique characters');
+            return false;
+        }
+
+        return true;
+    }
+
+    handleWorkerMessage(e) {
+        const { type, data } = e.data;
+        
+        switch (type) {
+            case 'progress':
+                this.updateProgress(data);
+                break;
+                
+            case 'result':
+                this.displayResults(data);
+                break;
+                
+            case 'error':
+                this.showError(data.message);
+                break;
+        }
+        
+        this.setLoadingState(false);
+    }
+
+    displayResults({ keys, decrypted }) {
+        this.keyList.innerHTML = keys.map((key, index) => `
+            <div class="key-item" data-key="${key.value}" 
+                 onclick="vigenereCracker.selectKey(${index})">
+                <div class="key-header">
+                    <span class="key-value">${key.value}</span>
+                    <span class="key-length">${key.value.length} chars</span>
+                </div>
+                <div class="key-meta">
+                    Position: ${key.position} | 
+                    Confidence: ${key.confidence.toFixed(2)}
+                </div>
+            </div>
+        `).join('');
+
+        this.decryptedText.innerHTML = this.highlightText(
+            decrypted, 
+            this.getInputParams().knownText
+        );
+    }
+
+    selectKey(index) {
+        const key = this.currentResults[index];
+        this.decryptedText.innerHTML = this.highlightText(
+            this.decryptText(key.value),
+            this.getInputParams().knownText
+        );
+    }
+
+    decryptText(key) {
+        const { ciphertext, alphabet } = this.getInputParams();
+        return VigenereCracker.decrypt(ciphertext, key, alphabet);
+    }
+
+    static decrypt(ciphertext, key, alphabet) {
+        const mod = alphabet.length;
+        return ciphertext.split('').map((char, index) => {
+            const keyChar = key[index % key.length];
+            const charPos = alphabet.indexOf(char);
+            const keyPos = alphabet.indexOf(keyChar);
+            
+            return charPos === -1 || keyPos === -1 
+                ? char 
+                : alphabet[(charPos - keyPos + mod) % mod];
+        }).join('');
+    }
+
+    highlightText(text, phrase) {
+        const regex = new RegExp(`(${phrase})`, 'gi');
+        return text.replace(regex, '<span class="highlight">$1</span>');
+    }
+
+    updateProgress({ processed, total }) {
+        const percent = Math.round((processed / total) * 100);
+        this.statusElement.textContent = `Processing: ${percent}% completed`;
+    }
+
+    showError(message) {
+        this.statusElement.innerHTML = `<span style="color: ${errorColor}">${message}</span>`;
+    }
+
+    setLoadingState(isLoading) {
+        this.analyzeBtn.disabled = isLoading;
+    }
+
+    clearResults() {
+        this.keyList.innerHTML = '';
+        this.decryptedText.innerHTML = '';
+    }
+
+    handleWorkerError(error) {
+        console.error('Worker error:', error);
+        this.showError('Processing error - try shorter inputs');
+    }
 }
 
-body {
-    font-family: 'Roboto', sans-serif;
-    line-height: 1.6;
-    margin: 0;
-    padding: 2rem;
-    background-color: var(--background-color);
-}
-
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    background: white;
-    padding: 2rem;
-    border-radius: 8px;
-    box-shadow: 0 2px 15px rgba(0,0,0,0.1);
-}
-
-.input-section {
-    margin-bottom: 2rem;
-}
-
-.input-group {
-    margin-bottom: 1.5rem;
-}
-
-label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 500;
-    color: var(--primary-color);
-}
-
-input, textarea {
-    width: 100%;
-    padding: 0.8rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 1rem;
-}
-
-.monospace {
-    font-family: 'Fira Code', monospace;
-    font-size: 0.9rem;
-}
-
-.controls {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-button {
-    padding: 0.8rem 1.5rem;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-button.primary {
-    background-color: var(--secondary-color);
-    color: white;
-}
-
-button.primary:hover {
-    background-color: #2980b9;
-}
-
-.results-section {
-    display: grid;
-    grid-template-columns: 300px 1fr;
-    gap: 2rem;
-    margin-top: 2rem;
-}
-
-.key-list {
-    height: 500px;
-    overflow-y: auto;
-    border: 1px solid #eee;
-    border-radius: 4px;
-    padding: 1rem;
-}
-
-.key-item {
-    padding: 0.8rem;
-    margin-bottom: 0.5rem;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.key-item:hover {
-    background-color: var(--background-color);
-}
-
-.decryption-results {
-    border: 1px solid #eee;
-    border-radius: 4px;
-    padding: 1rem;
-    height: 500px;
-    overflow-y: auto;
-}
-
-.highlight {
-    background-color: #fff3cd;
-    padding: 0.2rem 0.4rem;
-    border-radius: 2px;
-}
-
-.status {
-    color: var(--primary-color);
-    font-size: 0.9rem;
-}
+const vigenereCracker = new VigenereCracker();
