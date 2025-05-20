@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Vigenère Dynamic Key Finder</title>
+    <title>Vigenère Reverse Engineering PRO</title>
     <style>
         :root {
             --bg-color: #1a1a1a;
@@ -55,9 +55,9 @@
             <textarea id="ciphertext" rows="6">OBKRUOXOGHULBSOLIFBBWFLRVQQPRNGKSSOTWTQSJQSSEKZZWATJKLUDIAWINFBNYPVTTMZFPKWGDKZXTJCDIGKUHUAUEKCAR</textarea>
             <input id="knownText" type="text" value="EAST" placeholder="Known plaintext">
             <input id="alphabet" type="text" value="KRYPTOSABCDEFGHIJLMNQUVWXZ" placeholder="Alphabet">
-            <input id="maxKeyLength" type="number" value="4" min="1" placeholder="Max key length">
+            <input id="keyLength" type="number" value="4" min="1" placeholder="Key length">
             <div id="controls">
-                <button onclick="start()">Start</button>
+                <button onclick="start()">Analyze</button>
                 <button onclick="stop()" id="stopBtn" disabled>Stop</button>
             </div>
             <div id="progress" class="progress"></div>
@@ -71,33 +71,23 @@
 <script>
 let isRunning = false;
 let currentPos = 0;
-let results = new Set();
 
-class AdvancedSolver {
+class VigenèreMaster {
     static decrypt(ciphertext, key, alphabet) {
-        return Array.from(ciphertext).map((c, i) => {
+        const mod = alphabet.length;
+        return [...ciphertext].map((c, i) => {
             const keyChar = key[i % key.length];
             const cIdx = alphabet.indexOf(c);
             const kIdx = alphabet.indexOf(keyChar);
-            return alphabet[(cIdx - kIdx + alphabet.length) % alphabet.length];
+            return (cIdx !== -1 && kIdx !== -1) 
+                ? alphabet[(cIdx - kIdx + mod) % mod]
+                : '�';
         }).join('');
     }
 
-    static checkKeyPeriodicity(fullKeyFragment, maxLength) {
-        const candidates = new Set();
-        for (let len = 1; len <= Math.min(maxLength, fullKeyFragment.length); len++) {
-            const base = fullKeyFragment.slice(0, len);
-            const reconstructed = base.repeat(Math.ceil(fullKeyFragment.length / len)).slice(0, fullKeyFragment.length);
-            if (reconstructed === fullKeyFragment) {
-                candidates.add(base);
-            }
-        }
-        return Array.from(candidates);
-    }
-
-    static async processPosition(pos, ciphertext, known, alphabet, maxKeyLen, update) {
-        const keyFragment = Array.from(known).map((pChar, i) => {
-            const c = ciphertext[pos + i];
+    static generateKeyCandidates(cipherFragment, knownFragment, alphabet, targetKeyLength) {
+        const fullKeyFragment = knownFragment.map((pChar, i) => {
+            const c = cipherFragment[i];
             const pIdx = alphabet.indexOf(pChar);
             const cIdx = alphabet.indexOf(c);
             return (pIdx !== -1 && cIdx !== -1) 
@@ -105,21 +95,47 @@ class AdvancedSolver {
                 : null;
         }).filter(c => c !== null).join('');
 
-        if (keyFragment.length !== known.length) return;
-
-        const possibleKeys = this.checkKeyPeriodicity(keyFragment, maxKeyLen);
-        
-        for (const key of possibleKeys) {
-            const decrypted = this.decrypt(ciphertext, key, alphabet);
-            if (decrypted.includes(known)) {
-                results.add(JSON.stringify({
-                    key,
-                    positions: [pos],
-                    decrypted
-                }));
-                await update();
+        // Проверка всех возможных базовых ключей
+        const candidates = new Set();
+        for (let len = 1; len <= targetKeyLength; len++) {
+            const baseKey = fullKeyFragment.slice(0, len);
+            if (baseKey.repeat(Math.ceil(fullKeyFragment.length / len)).startsWith(fullKeyFragment)) {
+                candidates.add(baseKey);
             }
         }
+        return Array.from(candidates);
+    }
+
+    static async processAllPositions(ciphertext, known, alphabet, keyLength, updateProgress) {
+        const validKeys = new Map();
+        const knownLen = known.length;
+        const total = ciphertext.length - knownLen;
+
+        for (currentPos = 0; currentPos <= total; currentPos++) {
+            if (!isRunning) break;
+
+            const cipherFragment = ciphertext.slice(currentPos, currentPos + knownLen);
+            const knownArr = [...known];
+            
+            const candidates = this.generateKeyCandidates(cipherFragment, knownArr, alphabet, keyLength);
+            
+            for (const key of candidates) {
+                if (key.length !== keyLength) continue;
+                
+                const decrypted = this.decrypt(ciphertext, key, alphabet);
+                if (decrypted.includes(known)) {
+                    const positions = [...(validKeys.get(key)?.positions || []), currentPos];
+                    validKeys.set(key, { decrypted, positions });
+                }
+            }
+            
+            await updateProgress(currentPos + 1, total);
+        }
+        
+        return Array.from(validKeys.entries()).map(([key, data]) => ({
+            key,
+            ...data
+        }));
     }
 }
 
@@ -128,60 +144,55 @@ async function start() {
     isRunning = true;
     document.getElementById('stopBtn').disabled = false;
     
-    const ciphertext = document.getElementById('ciphertext').value.toUpperCase();
-    const known = document.getElementById('knownText').value.toUpperCase();
-    const alphabet = [...new Set(document.getElementById('alphabet').value.toUpperCase())].join('');
-    const maxKeyLen = parseInt(document.getElementById('maxKeyLength').value);
+    const ciphertext = document.getElementById('ciphertext').value.toUpperCase().replace(/[^A-Z]/g, '');
+    const known = document.getElementById('knownText').value.toUpperCase().replace(/[^A-Z]/g, '');
+    const alphabetInput = document.getElementById('alphabet').value.toUpperCase().replace(/[^A-Z]/g, '');
+    const alphabet = [...new Set(alphabetInput)].join('');
+    const keyLength = parseInt(document.getElementById('keyLength').value);
 
     if (alphabet.length !== 26) {
-        alert("Alphabet must contain exactly 26 unique characters!");
+        alert("Alphabet must contain 26 unique characters!");
+        isRunning = false;
         return;
     }
 
-    results.clear();
-    currentPos = 0;
     document.getElementById('results').innerHTML = '';
-    const total = ciphertext.length - known.length;
-
-    const updateProgress = async () => {
+    const updateProgress = (current, total) => {
         document.getElementById('progress').innerHTML = 
-            `Processed: ${currentPos}/${total} positions<br>Found keys: ${results.size}`;
-        await new Promise(resolve => setTimeout(resolve, 0));
+            `Processed: ${current}/${total} positions`;
+        return new Promise(resolve => setTimeout(resolve, 0));
     };
 
-    for (currentPos = 0; currentPos <= total; currentPos++) {
-        if (!isRunning) break;
-        await AdvancedSolver.processPosition(
-            currentPos,
-            ciphertext,
-            known,
-            alphabet,
-            maxKeyLen,
+    try {
+        const results = await VigenèreMaster.processAllPositions(
+            ciphertext, 
+            known, 
+            alphabet, 
+            keyLength,
             updateProgress
         );
-    }
 
-    displayResults();
-    isRunning = false;
-    document.getElementById('stopBtn').disabled = true;
+        displayResults(results, known);
+    } finally {
+        isRunning = false;
+        document.getElementById('stopBtn').disabled = true;
+    }
 }
 
 function stop() {
     isRunning = false;
-    document.getElementById('stopBtn').disabled = true;
 }
 
-function displayResults() {
+function displayResults(results, known) {
     const resultsDiv = document.getElementById('results');
-    resultsDiv.innerHTML = Array.from(results).map(entry => {
-        const {key, decrypted} = JSON.parse(entry);
-        return `
-            <div style="margin-bottom: 2rem;">
-                <strong>🔑 ${key}</strong> (length: ${key.length})<br>
-                📜 Decrypted: ${highlight(decrypted, known)}
-            </div>
-        `;
-    }).join('');
+    resultsDiv.innerHTML = results.map(({ key, decrypted, positions }) => `
+        <div class="result">
+            <strong>🔑 ${key}</strong> (length: ${key.length})<br>
+            📍 Matches at positions: ${positions.join(', ')}<br>
+            📜 Decrypted: ${highlight(decrypted, known)}
+        </div>
+        <hr>
+    `).join('');
 }
 
 function highlight(text, phrase) {
