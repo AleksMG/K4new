@@ -1,293 +1,197 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vigenère Cracker Pro</title>
+    <title>CryptoGod Mode</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root {
-            --primary: #2c3e50;
-            --secondary: #3498db;
-            --background: #f8f9fa;
-            --text: #2c3e50;
-            --error: #e74c3c;
-            --success: #27ae60;
-        }
-
-        body {
-            font-family: 'Courier New', monospace;
-            background: var(--background);
-            color: var(--text);
-            margin: 20px;
-            line-height: 1.6;
-        }
-
-        .container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .panel {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .input-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-
-        textarea, input {
-            width: 100%;
-            padding: 10px;
-            border: 2px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-        }
-
-        button {
-            background: var(--secondary);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: opacity 0.3s;
-        }
-
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .progress {
-            height: 8px;
-            background: #eee;
-            border-radius: 4px;
-            margin: 15px 0;
-        }
-
-        .progress-bar {
-            height: 100%;
-            background: var(--success);
-            transition: width 0.3s;
-        }
-
-        .result {
-            padding: 15px;
-            margin: 10px 0;
-            background: white;
-            border-radius: 5px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .match {
-            background: #f1c40f33;
-            padding: 2px 4px;
-            border-radius: 3px;
-        }
+        :root { --matrix: 16px; }
+        body { font-family: monospace; background: #111; color: #0f0; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        canvas, pre { background: #000; padding: 10px; }
+        .alert { color: #ff0; border: 1px solid #ff0; padding: 10px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="panel">
-            <h1>Vigenère Cracker</h1>
-            
-            <div class="input-group">
-                <label>Ciphertext:</label>
-                <textarea id="ciphertext" rows="6">OBKRUOXOGHULBSOLIFBBWFLRVQQPRNGKSSOTWTQSJQSSEKZZWATJKLUDIAWINFBNYPVTTMZFPKWGDKZXTJCDIGKUHUAUEKCAR</textarea>
-            </div>
-
-            <div class="input-group">
-                <label>Known Plaintext:</label>
-                <input id="knownText" type="text" value="NORTHEAST">
-            </div>
-
-            <div class="input-group">
-                <label>Cipher Alphabet:</label>
-                <input id="alphabet" type="text" value="KRYPTOSABCDEFGHIJLMNQUVWXZ">
-            </div>
-
-            <div class="input-group">
-                <label>Key Length:</label>
-                <input id="keyLength" type="number" value="9" min="1" max="26">
-            </div>
-
-            <div class="input-group">
-                <button id="analyzeBtn">Start Analysis</button>
-                <button id="stopBtn" disabled>Stop</button>
-            </div>
-
-            <div class="progress">
-                <div class="progress-bar" id="progressBar" style="width: 0%"></div>
-            </div>
-            <div id="status">Ready</div>
+        <h1>🔐 CryptoGod Mode 2.0</h1>
+        <textarea id="cipher" placeholder="Ciphertext..." rows="5"></textarea>
+        <button onclick="fullAnalysis()">FULL ATTACK</button>
+        <div class="grid">
+            <div id="hypotheses"></div>
+            <canvas id="chart"></canvas>
         </div>
-
-        <div class="panel">
-            <h2>Results</h2>
-            <div id="results"></div>
-        </div>
+        <pre id="debug"></pre>
     </div>
 
 <script>
-'use strict';
-
-class VigenèreCracker {
-    constructor() {
-        this.worker = this.createWorker();
-    }
-
-    createWorker() {
-        const workerCode = `
-            self.onmessage = function(e) {
-                const { ciphertext, known, alphabet, keyLength } = e.data;
-                const mod = alphabet.length;
-                const results = new Map();
-                const knownUpper = known.toUpperCase();
-                const knownLen = knownUpper.length;
-
-                // Генерация ключа на основе первых keyLength символов
-                const initialFragment = ciphertext.substring(0, keyLength);
-                const initialKey = Array.from(knownUpper, (pChar, i) => {
-                    const cIdx = alphabet.indexOf(initialFragment[i]);
-                    const pIdx = alphabet.indexOf(pChar);
-                    return (cIdx !== -1 && pIdx !== -1) ?
-                        alphabet[(cIdx - pIdx + mod) % mod] : null;
-                }).filter(c => c !== null).join('');
-
-                // Проверка ключа на всем тексте
-                const fullKey = initialKey.repeat(Math.ceil(ciphertext.length / keyLength)).substring(0, ciphertext.length);
-                const decrypted = decrypt(ciphertext, fullKey, alphabet);
-
-                // Поиск всех вхождений известного текста
-                let pos = decrypted.indexOf(knownUpper);
-                while (pos !== -1) {
-                    const entry = results.get(initialKey) || { positions: [], decrypted };
-                    entry.positions.push(pos);
-                    results.set(initialKey, entry);
-                    pos = decrypted.indexOf(knownUpper, pos + 1);
+const CipherNinja = {
+    // 1. Метод Касиски для Виженера
+    kasiskiTest: (cipher, maxKeyLen = 20) => {
+        const repeats = {};
+        // Поиск повторяющихся триграмм
+        for (let i = 0; i < cipher.length - 2; i++) {
+            const trigram = cipher.slice(i, i+3);
+            if (!repeats[trigram]) repeats[trigram] = [];
+            repeats[trigram].push(i);
+        }
+        
+        // Вычисление расстояний
+        const distances = [];
+        for (const trigram in repeats) {
+            const positions = repeats[trigram];
+            if (positions.length > 1) {
+                for (let i = 1; i < positions.length; i++) {
+                    distances.push(positions[i] - positions[i-1]);
                 }
-
-                postMessage({ type: 'results', data: Array.from(results.entries()) });
-            };
-
-            function decrypt(text, key, alphabet) {
-                return Array.from(text, (c, i) => {
-                    const cIdx = alphabet.indexOf(c);
-                    const kIdx = alphabet.indexOf(key[i]);
-                    return (cIdx !== -1 && kIdx !== -1) ?
-                        alphabet[(cIdx - kIdx + alphabet.length) % alphabet.length] : '�';
-                }).join('');
             }
-        `;
-
-        const blob = new Blob([workerCode], { type: 'application/javascript' });
-        return new Worker(URL.createObjectURL(blob));
-    }
-
-    analyze(params) {
-        return new Promise((resolve) => {
-            this.worker.onmessage = (e) => {
-                if (e.data.type === 'results') resolve(e.data.data);
-            };
-            this.worker.postMessage(params);
-        });
-    }
-
-    terminate() {
-        this.worker.terminate();
-    }
-}
-
-let analyzer = null;
-
-document.getElementById('analyzeBtn').addEventListener('click', async () => {
-    try {
-        const ciphertext = cleanInput(document.getElementById('ciphertext').value);
-        const known = cleanInput(document.getElementById('knownText').value);
-        const alphabet = validateAlphabet(document.getElementById('alphabet').value);
-        const keyLength = parseInt(document.getElementById('keyLength').value);
-
-        if (!ciphertext || !known) {
-            showError('Ciphertext and Known Text are required');
-            return;
         }
-
-        if (alphabet.length !== 26) {
-            showError('Alphabet must contain exactly 26 unique characters');
-            return;
-        }
-
-        document.getElementById('results').innerHTML = '';
-        document.getElementById('stopBtn').disabled = false;
         
-        analyzer = new VigenèreCracker();
-        const results = await analyzer.analyze({ 
-            ciphertext,
-            known,
-            alphabet,
-            keyLength
+        // Нахождение НОД
+        const factors = {};
+        distances.forEach(d => {
+            for (let i = 2; i <= maxKeyLen; i++) {
+                if (d % i === 0) factors[i] = (factors[i] || 0) + 1;
+            }
         });
         
-        displayResults(results, known);
+        return Object.entries(factors).sort((a,b) => b[1] - a[1])[0]?.[0] || null;
+    },
 
-    } catch (error) {
-        showError(error.message);
-    } finally {
-        analyzer = null;
-        document.getElementById('stopBtn').disabled = true;
+    // 2. Транспозиция с автоподбором матриц
+    findTransposition: (cipher, sample) => {
+        const len = cipher.length;
+        const candidates = [];
+        
+        // Перебор возможных размеров матрицы
+        for (let cols = 2; cols <= len/2; cols++) {
+            const rows = Math.ceil(len / cols);
+            const matrix = [];
+            
+            // Заполнение матрицы по столбцам
+            for (let i = 0; i < rows; i++) {
+                matrix[i] = [];
+                for (let j = 0; j < cols; j++) {
+                    const pos = i + j * rows;
+                    matrix[i][j] = pos < len ? cipher[pos] : '';
+                }
+            }
+            
+            // Чтение по строкам
+            const candidate = matrix.flat().join('');
+            if (sample && candidate.includes(sample)) {
+                return { cols, rows, text: candidate };
+            }
+            candidates.push({ cols, rows, text: candidate });
+        }
+        return candidates;
+    },
+
+    // 3. Частотный анализ с кастомным алфавитом
+    frequencyAttack: (cipher, langProfile = 'en') => {
+        const freq = {};
+        for (const c of cipher) freq[c] = (freq[c] || 0) + 1;
+        const sorted = Object.entries(freq).sort((a,b) => b[1] - a[1]);
+        
+        // Сопоставление с эталонными частотами
+        const langFrequencies = {
+            en: 'ETAOINSHRDLCUMWFGYPBVKJXQZ',
+            ru: 'ОЕАИНТСРВЛКМДПУЯЫЬГЗБЧЙХЖШЮЦЩЭФЪЁ'
+        };
+        
+        const mapping = {};
+        sorted.forEach(([char,], i) => {
+            mapping[char] = langFrequencies[langProfile][i] || '?';
+        });
+        
+        return {
+            frequencies: sorted,
+            decrypted: cipher.split('').map(c => mapping[c]).join('')
+        };
+    },
+
+    // 4. Полный пайплайн анализа
+    fullPipeline: (cipher, sample) => {
+        const report = { steps: [] };
+        
+        // Шаг 1: Кодировки
+        ['base64', 'hex'].forEach(enc => {
+            try {
+                const decoded = atob(cipher);
+                if (/^[a-zA-Z]+$/.test(decoded)) {
+                    report.steps.push({ type: 'encoding', name: enc, result: decoded });
+                    cipher = decoded;
+                }
+            } catch(e) {}
+        });
+        
+        // Шаг 2: Метод Касиски
+        const keyLen = CipherNinja.kasiskiTest(cipher);
+        if (keyLen) report.steps.push({ type: 'vigenere', keyLength: keyLen });
+        
+        // Шаг 3: Транспозиция
+        const transpositions = CipherNinja.findTransposition(cipher, sample);
+        if (transpositions.text) {
+            report.steps.push({ 
+                type: 'transposition', 
+                matrix: `${transpositions.rows}x${transpositions.cols}`,
+                result: transpositions.text 
+            });
+        }
+        
+        // Шаг 4: Частотный анализ
+        const freqResult = CipherNinja.frequencyAttack(cipher);
+        report.steps.push({
+            type: 'frequency',
+            topChars: freqResult.frequencies.slice(0,5),
+            decrypted: freqResult.decrypted
+        });
+        
+        return report;
     }
-});
+};
 
-document.getElementById('stopBtn').addEventListener('click', () => {
-    if (analyzer) analyzer.terminate();
-});
-
-function cleanInput(str) {
-    return str.toUpperCase().replace(/[^A-Z]/g, '');
+// Визуализация
+function drawChart(data) {
+    const ctx = document.getElementById('chart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(d => d[0]),
+            datasets: [{ label: 'Frequency', data: data.map(d => d[1]) }]
+        }
+    });
 }
 
-function validateAlphabet(input) {
-    return [...new Set(cleanInput(input))].join('');
-}
-
-function displayResults(results, known) {
-    const container = document.getElementById('results');
-    container.innerHTML = results
-        .map(([key, data]) => `
-            <div class="result">
-                <strong>Key: ${key}</strong> (Length: ${key.length})<br>
-                Matches: ${data.positions.length}<br>
-                Positions: ${data.positions.join(', ')}<br>
-                Decrypted: ${highlightMatches(data.decrypted, known)}
-            </div>
-        `).join('');
-}
-
-function highlightMatches(text, pattern) {
-    const regex = new RegExp(pattern, 'gi');
-    return text.replace(regex, '<span class="match">$&</span>');
-}
-
-function showError(message) {
-    const status = document.getElementById('status');
-    status.style.color = 'var(--error)';
-    status.textContent = message;
-    setTimeout(() => {
-        status.style.color = '';
-        status.textContent = 'Ready';
-    }, 5000);
+async function fullAnalysis() {
+    const cipher = document.getElementById('cipher').value;
+    const report = CipherNinja.fullPipeline(cipher);
+    
+    // Рендер отчета
+    let html = '';
+    report.steps.forEach(step => {
+        html += `<div class="alert">`;
+        html += `<strong>${step.type.toUpperCase()}</strong><br>`;
+        
+        switch(step.type) {
+            case 'encoding':
+                html += `Decoded ${step.name}: <pre>${step.result.slice(0, 100)}</pre>`;
+                break;
+            case 'vigenere':
+                html += `Possible key length: ${step.keyLength}`;
+                break;
+            case 'transposition':
+                html += `Matrix: ${step.matrix}<br>Decrypted: <pre>${step.result.slice(0,100)}</pre>`;
+                break;
+            case 'frequency':
+                html += `Top chars: ${step.topChars.map(c => `${c[0]}(${c[1]})`).join(' ')}<br>`;
+                html += `Mapped text: <pre>${step.decrypted.slice(0,100)}</pre>`;
+                break;
+        }
+        html += `</div>`;
+    });
+    
+    document.getElementById('hypotheses').innerHTML = html;
+    drawChart(CipherNinja.frequencyAttack(cipher).frequencies);
 }
 </script>
 </body>
