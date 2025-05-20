@@ -1,117 +1,183 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>CryptoAI Pro</title>
+    <title>CryptoUltimate</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
     <style>
-        /* ... (полный CSS на 50 строк) ... */
+        :root {
+            --bg: #1a1a1a;
+            --text: #00ff00;
+            --border: #00ff0080;
+        }
+        body {
+            font-family: monospace;
+            background: var(--bg);
+            color: var(--text);
+            margin: 2rem;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        textarea, button, pre {
+            background: #000;
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 10px;
+            margin: 5px 0;
+            width: 100%;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+        canvas {
+            background: #000;
+        }
+        .hypothesis {
+            padding: 1rem;
+            border: 1px solid var(--border);
+            margin: 1rem 0;
+        }
     </style>
 </head>
 <body>
-    <!-- ... (интерфейс с вкладками, графиками, логами) ... -->
-    <script>
-        //####################################################################
-        // Модуль 1: Анализ Касиски и Виженер
-        //####################################################################
-        class KasiskiAnalyzer {
-            static findRepeatingGrams(text, gramSize = 3) { /* ... */ }
-            static calculateKeyLength(distances) { /* ... */ }
-        }
-
-        //####################################################################
-        // Модуль 2: Транспозиции и перестановки
-        //####################################################################
-        class TranspositionSolver {
-            static generateMatrices(text, maxSize = 20) { /* ... */ }
-            static scoreText(text) { /* ... */ } // Оценка "английскости"
-        }
-
-        //####################################################################
-        // Модуль 3: Частотный анализ и N-граммы
-        //####################################################################
-        class FrequencyAnalyzer {
-            static getFrequencies(text) { /* ... */ }
-            static compareToEnglish(freq) { /* ... */ }
-            static analyzeNGrams(text, n = 3) { /* ... */ }
-        }
-
-        //####################################################################
-        // Модуль 4: Кодировки и XOR
-        //####################################################################
-        class EncodingDetector {
-            static detectBase64(text) { /* ... */ }
-            static detectHex(text) { /* ... */ }
-            static bruteXOR(cipher, options = {}) { /* ... */ }
-        }
-
-        //####################################################################
-        // Модуль 5: Машинное обучение
-        //####################################################################
-        class MLModel {
-            static async load() { /* ... */ } // Предобученная модель
-            static async classify(text) { /* ... */ } // Определяет тип шифра
-        }
-
-        //####################################################################
-        // Ядро системы
-        //####################################################################
-        class CryptoAICore {
-            constructor() {
-                this.steps = [];
-                this.hypotheses = [];
-            }
-
-            async fullAnalysis(text) {
-                // Этап 1: Декодирование
-                const decoded = this._tryDecodings(text);
-                
-                // Этап 2: Классификация ML
-                const mlResult = await MLModel.classify(decoded);
-                
-                // Этап 3: Целевой анализ
-                switch(mlResult.topClass) {
-                    case 'vigenere':
-                        this._analyzeVigenere(decoded);
-                        break;
-                    case 'transposition':
-                        this._analyzeTransposition(decoded);
-                        break;
-                    // ... другие типы ...
-                }
-                
-                return this.hypotheses.sort((a,b) => b.score - a.score);
-            }
-
-            _tryDecodings(text) {
-                // Base64, HEX, URL-encode, ROT13
-                // ... (50 строк логики) ...
-            }
-
-            _analyzeVigenere(text) {
-                // Полный анализ Виженера: Касиски + частотный анализ
-                // ... (100 строк) ...
-            }
-        }
-
-        //####################################################################
-        // Инициализация и запуск
-        //####################################################################
-        let aiCore = new CryptoAICore();
+    <div class="container">
+        <h1>🔐 CryptoUltimate 10.0</h1>
+        <textarea id="input" rows="5" placeholder="Paste ciphertext here..."></textarea>
+        <button onclick="startAnalysis()">Analyze</button>
         
-        async function startAnalysis() {
-            const text = document.getElementById('input').value;
-            const results = await aiCore.fullAnalysis(text);
-            
-            // Рендер результатов
-            results.forEach(hypo => {
-                renderHypothesis(hypo);
-            });
-            
-            // Отрисовка графиков
-            drawFrequencyChart(text);
-            drawNGramsChart(text);
+        <div class="grid">
+            <div id="results"></div>
+            <canvas id="chart"></canvas>
+        </div>
+    </div>
+
+<script>
+const CipherMaster = {
+    // Метод Касиски
+    kasiski: (text) => {
+        const grams = {};
+        for (let i = 0; i < text.length - 2; i++) {
+            const gram = text.substr(i, 3);
+            grams[gram] = grams[gram] || [];
+            grams[gram].push(i);
         }
-    </script>
+        
+        const distances = [];
+        for (const gram in grams) {
+            if (grams[gram].length > 1) {
+                for (let i = 1; i < grams[gram].length; i++) {
+                    distances.push(grams[gram][i] - grams[gram][i-1]);
+                }
+            }
+        }
+        
+        const factors = {};
+        distances.forEach(d => {
+            for (let i = 2; i <= 20; i++) {
+                if (d % i === 0) factors[i] = (factors[i] || 0) + 1;
+            }
+        });
+        
+        return Object.entries(factors).sort((a,b) => b[1] - a[1])[0]?.[0] || null;
+    },
+
+    // Транспозиция
+    transpose: (text, rows) => {
+        const cols = Math.ceil(text.length / rows);
+        const matrix = Array.from({length: rows}, () => []);
+        for (let i = 0; i < text.length; i++) {
+            matrix[i % rows].push(text[i]);
+        }
+        return matrix.flat().join('');
+    },
+
+    // Частотный анализ
+    frequency: (text) => {
+        const freq = {};
+        for (const c of text) freq[c] = (freq[c] || 0) + 1;
+        return Object.entries(freq).sort((a,b) => b[1] - a[1]);
+    },
+
+    // Полный анализ
+    analyze: (text) => {
+        const report = [];
+        
+        // 1. Метод Касиски
+        const keyLength = CipherMaster.kasiski(text);
+        if (keyLength) {
+            report.push({
+                type: 'Vigenère',
+                keyLength: keyLength,
+                confidence: Math.min(100, keyLength * 15)
+            });
+        }
+
+        // 2. Транспозиция
+        for (let rows = 2; rows <= 5; rows++) {
+            const transposed = CipherMaster.transpose(text, rows);
+            if (/( the | and )/i.test(transposed)) {
+                report.push({
+                    type: 'Transposition',
+                    matrix: `${rows}x${Math.ceil(text.length/rows)}`,
+                    preview: transposed.slice(0, 50),
+                    confidence: 70
+                });
+            }
+        }
+
+        // 3. Частотный анализ
+        const freq = CipherMaster.frequency(text);
+        if (freq[0][1] > text.length * 0.15) {
+            report.push({
+                type: 'Substitution',
+                topChar: freq[0][0],
+                confidence: 85
+            });
+        }
+
+        return report;
+    }
+};
+
+function startAnalysis() {
+    const text = document.getElementById('input').value;
+    const results = CipherMaster.analyze(text);
+    
+    // Очистка предыдущих результатов
+    const resultsDiv = document.getElementById('results');
+    resultsDiv.innerHTML = '';
+    
+    // Рендер результатов
+    results.forEach(result => {
+        const div = document.createElement('div');
+        div.className = 'hypothesis';
+        div.innerHTML = `
+            <h3>${result.type} (${result.confidence}%)</h3>
+            ${result.keyLength ? `Key length: ${result.keyLength}<br>` : ''}
+            ${result.matrix ? `Matrix: ${result.matrix}<br>` : ''}
+            ${result.preview ? `Preview: ${result.preview}` : ''}
+        `;
+        resultsDiv.appendChild(div);
+    });
+
+    // Отрисовка графика
+    const freqData = CipherMaster.frequency(text);
+    new Chart(document.getElementById('chart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: freqData.map(d => d[0]),
+            datasets: [{
+                label: 'Character Frequency',
+                data: freqData.map(d => d[1]),
+                backgroundColor: '#00ff0050'
+            }]
+        }
+    });
+}
+</script>
 </body>
 </html>
