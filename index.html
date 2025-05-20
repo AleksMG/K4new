@@ -2,49 +2,136 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kryptos K4 Cracker</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Vigenère Full Key Search</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --text-color: #e0e0e0;
+            --accent: #00bcd4;
+            --match-bg: #ffeb3b33;
+        }
+        body {
+            font-family: 'Consolas', monospace;
+            background: var(--bg-color);
+            color: var(--text-color);
+            margin: 2rem;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+        .panel {
+            background: #2d2d2d;
+            padding: 1.5rem;
+            border-radius: 8px;
+        }
+        textarea, input, button {
+            width: 100%;
+            margin: 0.5rem 0;
+            padding: 0.5rem;
+            background: #3d3d3d;
+            border: 1px solid #4d4d4d;
+            color: var(--text-color);
+        }
+        .match {
+            background: var(--match-bg);
+            padding: 2px;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <h1>Kryptos K4 Cracker</h1>
-        
-        <div class="input-section">
-            <div class="input-group">
-                <label for="ciphertext">Ciphertext:</label>
-                <textarea id="ciphertext" class="monospace">OBKRUOXOGHULBSOLTFBBWFLRVQQPRNGKSSOTWTQSJQSSEKZZWATJKLUDIAWINFBNYPVTTMZFPKMGDKZXTJCDTGKUHUAUEKCAR</textarea>
-            </div>
-            
-            <div class="input-row">
-                <div class="input-group">
-                    <label for="knownText">Known Plaintext:</label>
-                    <input type="text" id="knownText" value="BERLIN">
-                </div>
-                
-                <div class="input-group">
-                    <label for="alphabet">Alphabet:</label>
-                    <input type="text" id="alphabet" class="monospace" value="KRYPTOSABCDEFGHIJLMNQUVWXZ">
-                </div>
-            </div>
-            
-            <button id="analyzeBtn" class="primary">Analyze</button>
-            <div id="status" class="status"></div>
+        <div class="panel">
+            <h2>Input</h2>
+            <textarea id="ciphertext" rows="6">OBKRUOXOGHULBSOLIFBBWFLRVQQPRNGKSSOTWTQSJQSSEKZZWATJKLUDIAWINFBNYPVTTMZFPKWGDKZXTJCDIGKUHUAUEKCAR</textarea>
+            <input id="knownText" type="text" value="EAST" placeholder="Known plaintext">
+            <input id="alphabet" type="text" value="KRYPTOSABCDEFGHIJLMNQUVWXZ" placeholder="Alphabet">
+            <input id="maxKeyLength" type="number" value="5" min="1" placeholder="Max key length">
+            <button onclick="startAnalysis()">Find All Keys</button>
         </div>
-        
-        <div class="results-section">
-            <div class="key-results">
-                <h3>Potential Keys</h3>
-                <div id="keyList" class="key-list"></div>
-            </div>
-            
-            <div class="decryption-results">
-                <h3>Decrypted Text</h3>
-                <div id="decryptedText" class="monospace"></div>
-            </div>
+        <div class="panel">
+            <h2>Results</h2>
+            <div id="results"></div>
         </div>
     </div>
 
-    <script src="app.js"></script>
+<script>
+const Vigenère = {
+    decrypt(ciphertext, key, alphabet) {
+        return [...ciphertext].map((c, i) => {
+            const keyChar = key[i % key.length];
+            const cIdx = alphabet.indexOf(c);
+            const kIdx = alphabet.indexOf(keyChar);
+            return alphabet[(cIdx - kIdx + alphabet.length) % alphabet.length];
+        }).join('');
+    },
+
+    *generateAllPossibleKeys(alphabet, maxLength) {
+        function* generate(length, current) {
+            if (current.length === length) {
+                yield current.join('');
+                return;
+            }
+            for (const char of alphabet) {
+                yield* generate(length, [...current, char]);
+            }
+        }
+        for (let len = 1; len <= maxLength; len++) {
+            yield* generate(len, []);
+        }
+    },
+
+    findAllValidKeys(ciphertext, known, alphabet, maxKeyLength) {
+        const validKeys = new Map();
+        const knownLen = known.length;
+
+        for (const key of this.generateAllPossibleKeys(alphabet, maxKeyLength)) {
+            const decrypted = this.decrypt(ciphertext, key, alphabet);
+            let pos = decrypted.indexOf(known);
+            
+            while (pos !== -1) {
+                if (!validKeys.has(key)) {
+                    validKeys.set(key, []);
+                }
+                validKeys.get(key).push(pos);
+                pos = decrypted.indexOf(known, pos + 1);
+            }
+        }
+
+        return Array.from(validKeys.entries()).map(([key, positions]) => ({
+            key,
+            positions,
+            decrypted: this.decrypt(ciphertext, key, alphabet)
+        }));
+    }
+};
+
+function startAnalysis() {
+    const ciphertext = document.getElementById('ciphertext').value.toUpperCase();
+    const known = document.getElementById('knownText').value.toUpperCase();
+    const alphabet = [...new Set(document.getElementById('alphabet').value.toUpperCase())].join('');
+    const maxKeyLength = parseInt(document.getElementById('maxKeyLength').value);
+
+    if (alphabet.length !== 26) {
+        alert('Alphabet must have 26 unique characters!');
+        return;
+    }
+
+    const results = Vigenère.findAllValidKeys(ciphertext, known, alphabet, maxKeyLength);
+    displayResults(results, known);
+}
+
+function displayResults(results, known) {
+    const resultsDiv = document.getElementById('results');
+    resultsDiv.innerHTML = results.map(({key, decrypted, positions}) => `
+        <div style="margin-bottom: 2rem;">
+            <strong>🔑 ${key}</strong> (length: ${key.length})<br>
+            📍 Positions: ${positions.join(', ')}<br>
+            📜 ${decrypted.replace(new RegExp(known, 'g'), '<span class="match">$&</span>')}
+        </div>
+    `).join('');
+}
+</script>
 </body>
 </html>
