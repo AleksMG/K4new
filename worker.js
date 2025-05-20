@@ -1,95 +1,138 @@
-// Функция для расчета "доверия" к ключу (чем выше, тем более осмысленный ключ)
-function calculateKeyConfidence(key, alphabet) {
-    // Эвристики для определения "осмысленности" ключа:
-    // 1. Чем меньше уникальных символов, тем лучше (повторяющиеся паттерны)
-    // 2. Чем чаще встречаются символы из начала алфавита (часто используемые буквы)
-    // 3. Чем меньше скачков между символами (плавные изменения)
+function calculateKeyConfidence(key, alphabet, decryptedFragment) {
+    // Улучшенная эвристика:
+    // 1. Предпочтение более коротким ключам
+    // 2. Учет повторяемости паттернов
+    // 3. Анализ осмысленности расшифрованного текста
+    
+    const lengthPenalty = Math.min(1, 3 / key.length); // Предпочтение коротким ключам
     
     const uniqueChars = new Set(key).size;
     const uniqueScore = 1 - (uniqueChars - 1) / key.length;
     
-    let positionScore = 0;
-    for (let i = 0; i < key.length; i++) {
-        positionScore += 1 - (alphabet.indexOf(key[i]) / alphabet.length);
+    let patternScore = 0;
+    if (key.length > 1) {
+        for (let i = 1; i < key.length; i++) {
+            if (key[i] === key[i-1]) patternScore += 0.5;
+        }
+        patternScore = Math.min(1, patternScore / key.length);
     }
-    positionScore /= key.length;
     
-    let smoothness = 0;
-    for (let i = 1; i < key.length; i++) {
-        const diff = Math.abs(alphabet.indexOf(key[i]) - alphabet.indexOf(key[i-1]));
-        smoothness += 1 - (diff / alphabet.length);
+    // Простая проверка на гласные в расшифрованном тексте
+    let textScore = 0;
+    const vowels = new Set(['A', 'E', 'I', 'O', 'U', 'Y']);
+    if (decryptedFragment) {
+        let vowelCount = 0;
+        for (let i = 0; i < decryptedFragment.length; i++) {
+            if (vowels.has(decryptedFragment[i])) vowelCount++;
+        }
+        textScore = vowelCount / decryptedFragment.length;
     }
-    smoothness /= (key.length - 1);
     
-    return (uniqueScore * 0.4 + positionScore * 0.3 + smoothness * 0.3);
+    return (lengthPenalty * 0.4 + uniqueScore * 0.2 + patternScore * 0.2 + textScore * 0.2);
 }
 
 function findAllKeys(ciphertext, knownText, alphabet) {
     const results = [];
     const n = alphabet.length;
-    const maxAttempts = 10000; // Защита от бесконечного цикла
+    const maxAttempts = 100000;
+    const maxKeyLength = 20; // Максимальная длина ключа для проверки
     
     let attempts = 0;
     let lastReport = 0;
     
-    // Проверяем все возможные позиции в шифртексте
-    for (let pos = 0; pos <= ciphertext.length - knownText.length; pos++) {
-        if (attempts++ > maxAttempts) break;
-        
-        // Рассчитываем процент выполнения
-        const progress = Math.floor((pos / (ciphertext.length - knownText.length)) * 100);
-        if (progress > lastReport) {
-            lastReport = progress;
-            self.postMessage({
-                type: 'progress',
-                data: {
-                    progress,
-                    keys: results.length
+    // Проверяем ключи разной длины от 1 до maxKeyLength символов
+    for (let keyLength = 1; keyLength <= maxKeyLength; keyLength++) {
+        // Проверяем все возможные позиции в шифртексте
+        for (let pos = 0; pos <= ciphertext.length - knownText.length; pos++) {
+            if (attempts++ > maxAttempts) break;
+            
+            const progress = Math.floor((keyLength * (ciphertext.length - knownText.length) + pos) / 
+                           (maxKeyLength * (ciphertext.length - knownText.length)) * 100);
+            if (progress > lastReport) {
+                lastReport = progress;
+                self.postMessage({
+                    type: 'progress',
+                    data: {
+                        progress,
+                        keys: results.length
+                    }
+                });
+            }
+            
+            let key = '';
+            let isValid = true;
+            
+            // Генерируем ключ заданной длины
+            for (let i = 0; i < keyLength; i++) {
+                const keyPos = (pos + i) % ciphertext.length;
+                const cipherChar = ciphertext[keyPos];
+                const knownChar = knownText[i % knownText.length];
+                
+                const cipherIndex = alphabet.indexOf(cipherChar);
+                const knownIndex = alphabet.indexOf(knownChar);
+                
+                if (cipherIndex === -1 || knownIndex === -1) {
+                    isValid = false;
+                    break;
                 }
-            });
-        }
-        
-        let isValid = true;
-        let key = '';
-        
-        // Проверяем, что все символы известного текста есть в алфавите
-        for (let i = 0; i < knownText.length; i++) {
-            const knownChar = knownText[i];
-            if (alphabet.indexOf(knownChar) === -1) {
-                isValid = false;
-                break;
-            }
-        }
-        if (!isValid) continue;
-        
-        // Вычисляем ключ для текущей позиции
-        for (let i = 0; i < knownText.length; i++) {
-            const cipherChar = ciphertext[pos + i];
-            const knownChar = knownText[i];
-            
-            const cipherIndex = alphabet.indexOf(cipherChar);
-            const knownIndex = alphabet.indexOf(knownChar);
-            
-            if (cipherIndex === -1) {
-                isValid = false;
-                break;
+                
+                const keyIndex = (cipherIndex - knownIndex + n) % n;
+                key += alphabet[keyIndex];
             }
             
-            const keyIndex = (cipherIndex - knownIndex + n) % n;
-            key += alphabet[keyIndex];
-        }
-        
-        if (isValid && key.length > 0) {
-            const confidence = calculateKeyConfidence(key, alphabet);
-            results.push({
-                position: pos,
-                key,
-                confidence
-            });
+            if (isValid && key.length === keyLength) {
+                // Расшифровываем фрагмент для проверки
+                const decryptedFragment = vigenereDecrypt(
+                    ciphertext.substr(pos, knownText.length),
+                    key,
+                    alphabet
+                );
+                
+                const confidence = calculateKeyConfidence(key, alphabet, decryptedFragment);
+                
+                results.push({
+                    position: pos,
+                    key,
+                    confidence,
+                    decryptedFragment
+                });
+            }
         }
     }
     
     return results;
+}
+
+function vigenereDecrypt(ciphertext, key, alphabet) {
+    const n = alphabet.length;
+    let decrypted = '';
+    let keyIndex = 0;
+    
+    for (let i = 0; i < ciphertext.length; i++) {
+        const cipherChar = ciphertext[i];
+        const cipherPos = alphabet.indexOf(cipherChar);
+        
+        if (cipherPos === -1) {
+            decrypted += cipherChar;
+            continue;
+        }
+        
+        const keyChar = key[keyIndex % key.length];
+        const keyPos = alphabet.indexOf(keyChar);
+        
+        if (keyPos === -1) {
+            decrypted += '?';
+            keyIndex++;
+            continue;
+        }
+        
+        const decryptedPos = (cipherPos - keyPos + n) % n;
+        decrypted += alphabet[decryptedPos];
+        
+        keyIndex++;
+    }
+    
+    return decrypted;
 }
 
 self.onmessage = function(e) {
