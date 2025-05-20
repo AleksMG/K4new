@@ -1,49 +1,79 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Real Cipher Breaker</title>
+  <title>Универсальный взломщик шифров</title>
   <style>
     body { font-family: monospace; max-width: 800px; margin: 0 auto; padding: 20px; }
-    textarea { width: 100%; height: 100px; }
-    #results { margin-top: 20px; }
-    .result { background: #f5f5f5; padding: 10px; margin: 5px 0; }
+    textarea { width: 100%; height: 150px; font-size: 16px; }
+    button { padding: 10px 15px; background: #2c3e50; color: white; border: none; cursor: pointer; margin: 10px 0; }
+    .result { background: #f8f9fa; padding: 15px; margin: 10px 0; border-left: 4px solid #3498db; }
+    .warning { color: #e74c3c; }
+    .success { color: #27ae60; }
   </style>
 </head>
 <body>
-  <h1>Real Cipher Breaker</h1>
-  <textarea id="input" placeholder="Вставьте зашифрованный текст..."></textarea>
-  <button onclick="breakCipher()">Взломать</button>
+  <h1>Универсальный анализатор шифров</h1>
+  <textarea id="input" placeholder="Вставьте любой зашифрованный текст (буквы, цифры, символы)..."></textarea>
+  <button onclick="analyzeCipher()">Анализировать и взломать</button>
   <div id="results"></div>
 
 <script>
-// ■■■■■■■■■■■■■■■■■■ ЯДРО АНАЛИЗАТОРА ■■■■■■■■■■■■■■■■■■
-class CipherBreaker {
-  constructor() {
-    this.englishFreq = this._createFreqMap();
-  }
+// ■■■■■■■■■■■■■■■■■■ ЯДРО СИСТЕМЫ ■■■■■■■■■■■■■■■■■■
+const CipherBreaker = {
+  // Частотные словари
+  freq: {
+    en: this._createEnglishFreq(),
+    ru: this._createRussianFreq()
+  },
 
-  // Основной метод
+  // Основной метод анализа
   analyze(text) {
     const results = [];
     
-    // 1. Проверка Base64
-    const base64 = this._testBase64(text);
-    if (base64) results.push(base64);
+    // Автодетекция типа шифра
+    const cipherType = this._detectCipherType(text);
     
-    // 2. Анализ Цезаря
-    results.push(...this._breakCaesar(text));
-    
-    // 3. Виженер (только для длинных текстов)
-    if (text.length > 20) {
-      results.push(this._breakVigenere(text));
+    // Применяем соответствующий метод
+    switch(cipherType) {
+      case 'caesar':
+        results.push(...this._breakCaesar(text));
+        break;
+      case 'vigenere':
+        results.push(this._breakVigenere(text));
+        break;
+      case 'base64':
+        results.push(this._decodeBase64(text));
+        break;
+      case 'xor':
+        results.push(...this._breakXor(text));
+        break;
+      default:
+        results.push(this._tryAdvancedMethods(text));
     }
     
-    // 4. XOR-анализ
-    results.push(...this._breakXor(text));
+    return {
+      cipherType: cipherType,
+      results: results.sort((a,b) => b.confidence - a.confidence)
+    };
+  },
+
+  // ■■■■■■■■■■■■■■■■■■ МЕТОДЫ АНАЛИЗА ■■■■■■■■■■■■■■■■■■
+  _detectCipherType(text) {
+    // Анализ характеристик текста
+    const features = {
+      entropy: this._calcEntropy(text),
+      charDistribution: this._calcCharDistribution(text),
+      base64Like: /^[A-Za-z0-9+/=]+$/.test(text)
+    };
+
+    // Логика определения
+    if (features.base64Like && text.length % 4 === 0) return 'base64';
+    if (features.entropy > 4.5) return 'xor';
+    if (this._isCaesarLike(text)) return 'caesar';
+    if (text.length > 20 && this._isVigenereLike(text)) return 'vigenere';
     
-    // Сортировка по качеству
-    return results.sort((a, b) => b.confidence - a.confidence);
-  }
+    return 'unknown';
+  },
 
   // ■■■■■■■■■■■■■■■■■■ МЕТОДЫ ВЗЛОМА ■■■■■■■■■■■■■■■■■■
   _breakCaesar(text) {
@@ -53,125 +83,171 @@ class CipherBreaker {
       for (const char of text) {
         if (/[A-Z]/i.test(char)) {
           const base = char === char.toUpperCase() ? 65 : 97;
-          const code = ((char.charCodeAt(0) - base - shift + 26) % 26) + base;
+          const code = ((char.charCodeAt(0) - base - shift + 26) % 26 + base;
           decrypted += String.fromCharCode(code);
         } else {
           decrypted += char;
         }
       }
-      const confidence = this._rateText(decrypted);
-      if (confidence > 50 || shift === 13) { // Всегда показываем ROT13
+      const confidence = this._calcConfidence(decrypted);
+      if (confidence > 50 || shift === 13) {
         results.push({
-          method: `Caesar Shift ${shift}`,
+          method: `Шифр Цезаря (сдвиг ${shift})`,
           result: decrypted,
           confidence: confidence
         });
       }
     }
     return results;
-  }
+  },
 
-  _breakVigenere(text) {
+  _breakVigenere(text, maxKeyLength = 8) {
     const keyLength = this._findKeyLength(text);
-    let key = '';
+    let bestKey = '';
+    let bestScore = -Infinity;
     
-    for (let i = 0; i < keyLength; i++) {
-      let segment = "";
-      for (let j = i; j < text.length; j += keyLength) {
-        const char = text[j].toUpperCase();
-        if (/[A-Z]/.test(char)) segment += char;
-      }
+    // Генетический алгоритм поиска ключа
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const key = this._generateRandomKey(keyLength);
+      const decrypted = this._vigenereDecrypt(text, key);
+      const score = this._calcConfidence(decrypted);
       
-      // Частотный анализ для сегмента
-      const bestShift = this._findBestShift(segment);
-      key += String.fromCharCode(65 + bestShift);
+      if (score > bestScore) {
+        bestScore = score;
+        bestKey = key;
+      }
     }
     
     return {
-      method: "Vigenère (Key: " + key + ")",
-      result: this._vigenereDecrypt(text, key),
-      confidence: this._rateText(this._vigenereDecrypt(text, key))
+      method: `Шифр Виженера (ключ: ${bestKey})`,
+      result: this._vigenereDecrypt(text, bestKey),
+      confidence: bestScore
     };
-  }
+  },
 
   _breakXor(text) {
     const results = [];
-    for (let key = 32; key < 127; key++) {
+    // Перебор ключей от 1 до 255
+    for (let key = 1; key <= 255; key++) {
       let decrypted = "";
       for (let i = 0; i < text.length; i++) {
         decrypted += String.fromCharCode(text.charCodeAt(i) ^ key);
       }
-      const confidence = this._rateText(decrypted);
+      const confidence = this._calcConfidence(decrypted);
       if (confidence > 60) {
         results.push({
-          method: `XOR (Key ${key})`,
+          method: `XOR (ключ ${key})`,
           result: decrypted,
           confidence: confidence
         });
       }
     }
-    return results;
-  }
+    return results.slice(0, 5); // Топ-5 результатов
+  },
 
   // ■■■■■■■■■■■■■■■■■■ ВСПОМОГАТЕЛЬНЫЕ ■■■■■■■■■■■■■■■■■■
-  _findBestShift(text) {
-    const freq = this._calcFrequency(text);
-    let bestShift = 0;
-    let minDiff = Infinity;
-    
-    for (let shift = 0; shift < 26; shift++) {
-      let diff = 0;
-      for (let i = 0; i < 26; i++) {
-        const expected = this.englishFreq[String.fromCharCode(65 + i)] || 0;
-        diff += Math.abs(freq[i] - expected);
-      }
-      if (diff < minDiff) {
-        minDiff = diff;
-        bestShift = shift;
-      }
-    }
-    return bestShift;
-  }
-
-  _rateText(text) {
-    const commonWords = ["THE", "AND", "THAT", "HAVE"];
+  _calcConfidence(text) {
+    // Анализ текста на естественность
     let score = 0;
-    const upper = text.toUpperCase();
+    const clean = text.replace(/[^A-Za-z]/g, '').toUpperCase();
+    
+    if (clean.length < 3) return 0;
+    
+    // Проверка частот букв
+    for (const char of clean) {
+      score += this.freq.en[char] || -3;
+    }
     
     // Проверка общих слов
+    const commonWords = ["THE", "AND", "THAT", "HAVE", "WITH"];
     for (const word of commonWords) {
-      if (upper.includes(word)) score += word.length * 2;
+      if (clean.includes(word)) score += word.length * 5;
     }
     
-    // Частотный анализ
-    const freq = this._calcFrequency(upper);
-    for (let i = 0; i < 26; i++) {
-      const char = String.fromCharCode(65 + i);
-      score += 1 - Math.abs((this.englishFreq[char] || 0) - freq[i]) / 100;
+    return Math.min(100, Math.max(0, score / clean.length * 100));
+  },
+
+  _vigenereDecrypt(text, key) {
+    let result = "";
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      if (/[A-Z]/i.test(char)) {
+        const base = char === char.toUpperCase() ? 65 : 97;
+        const keyChar = key[i % key.length].toUpperCase();
+        const shift = keyChar.charCodeAt(0) - 65;
+        const code = ((char.charCodeAt(0) - base - shift + 26) % 26 + base;
+        result += String.fromCharCode(code);
+      } else {
+        result += char;
+      }
     }
-    
-    return Math.min(100, Math.max(0, score));
+    return result;
   }
+};
+
+// ■■■■■■■■■■■■■■■■■■ ИНТЕРФЕЙС ■■■■■■■■■■■■■■■■■■
+function analyzeCipher() {
+  const input = document.getElementById('input').value.trim();
+  if (!input) {
+    alert("Введите текст для анализа!");
+    return;
+  }
+
+  const resultsDiv = document.getElementById('results');
+  resultsDiv.innerHTML = '<div class="result">Анализируем текст...</div>';
+
+  setTimeout(() => {
+    try {
+      const analysis = CipherBreaker.analyze(input);
+      let output = `
+        <div class="result">
+          <strong>Определенный тип шифра:</strong> ${analysis.cipherType.toUpperCase()}
+        </div>
+      `;
+      
+      if (analysis.results.length > 0) {
+        analysis.results.forEach(res => {
+          output += `
+            <div class="result">
+              <strong>${res.method}</strong> (точность: ${Math.round(res.confidence)}%)<br>
+              ${res.result.length > 100 ? res.result.substring(0, 100) + '...' : res.result}
+            </div>
+          `;
+        });
+      } else {
+        output += '<div class="result warning">Не удалось определить шифр или взломать текст</div>';
+      }
+      
+      // Добавляем советы
+      output += `
+        <div class="result">
+          <strong>Рекомендации:</strong><br>
+          ${getAdvice(analysis)}
+        </div>
+      `;
+      
+      resultsDiv.innerHTML = output;
+    } catch (e) {
+      resultsDiv.innerHTML = `<div class="result warning">Ошибка: ${e.message}</div>`;
+    }
+  }, 300);
 }
 
-// ■■■■■■■■■■■■■■■■■■ ГОТОВЫЕ ФУНКЦИИ ■■■■■■■■■■■■■■■■■■
-function breakCipher() {
-  const input = document.getElementById('input').value;
-  const breaker = new CipherBreaker();
-  const results = breaker.analyze(input);
+function getAdvice(analysis) {
+  if (analysis.results.some(r => r.confidence > 70)) {
+    return "Высокая точность расшифровки - вероятно, это правильный результат";
+  }
   
-  const resultsDiv = document.getElementById('results');
-  resultsDiv.innerHTML = '';
-  
-  results.slice(0, 5).forEach(result => {
-    const div = document.createElement('div');
-    div.className = 'result';
-    div.innerHTML = `
-      <strong>${result.method}</strong> (${Math.round(result.confidence)}%)<br>
-      ${result.result}
-    `;
-    resultsDiv.appendChild(div);
-  });
+  switch(analysis.cipherType) {
+    case 'caesar':
+      return "Попробуйте разные сдвиги вручную (ROT13 - сдвиг 13)";
+    case 'vigenere':
+      return "Для Виженера нужен длинный текст (>50 символов) для точного анализа";
+    case 'xor':
+      return "XOR-шифры сложно взломать без знания длины ключа";
+    default:
+      return "Это может быть: 1) Составной шифр 2) Кодировка 3) Неизвестный алгоритм";
+  }
 }
 </script>
 </body>
