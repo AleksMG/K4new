@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Precise Vigenère Cracker</title>
+    <title>Vigenère Dynamic Key Finder</title>
     <style>
         :root {
             --bg-color: #1a1a1a;
@@ -55,7 +55,7 @@
             <textarea id="ciphertext" rows="6">OBKRUOXOGHULBSOLIFBBWFLRVQQPRNGKSSOTWTQSJQSSEKZZWATJKLUDIAWINFBNYPVTTMZFPKWGDKZXTJCDIGKUHUAUEKCAR</textarea>
             <input id="knownText" type="text" value="EAST" placeholder="Known plaintext">
             <input id="alphabet" type="text" value="KRYPTOSABCDEFGHIJLMNQUVWXZ" placeholder="Alphabet">
-            <input id="keyLength" type="number" value="4" min="1" placeholder="Key length">
+            <input id="maxKeyLength" type="number" value="4" min="1" placeholder="Max key length">
             <div id="controls">
                 <button onclick="start()">Start</button>
                 <button onclick="stop()" id="stopBtn" disabled>Stop</button>
@@ -71,9 +71,9 @@
 <script>
 let isRunning = false;
 let currentPos = 0;
-let results = [];
+let results = new Set();
 
-class PreciseSolver {
+class AdvancedSolver {
     static decrypt(ciphertext, key, alphabet) {
         return Array.from(ciphertext).map((c, i) => {
             const keyChar = key[i % key.length];
@@ -83,33 +83,43 @@ class PreciseSolver {
         }).join('');
     }
 
-    static async findExactKeys(ciphertext, known, alphabet, keyLength, updateProgress) {
-        const validKeys = new Set();
-        const totalPositions = ciphertext.length - known.length;
-        
-        for (let pos = 0; pos <= totalPositions; pos++) {
-            if (!isRunning) break;
-            
-            const key = Array.from(known).map((pChar, i) => {
-                const c = ciphertext[pos + i];
-                const pIdx = alphabet.indexOf(pChar);
-                const cIdx = alphabet.indexOf(c);
-                return (pIdx !== -1 && cIdx !== -1)
-                    ? alphabet[(cIdx - pIdx + alphabet.length) % alphabet.length]
-                    : null;
-            }).filter(c => c !== null).join('');
-
-            if (key.length !== keyLength) continue;
-            
-            const decrypted = this.decrypt(ciphertext, key, alphabet);
-            if (decrypted.includes(known)) {
-                validKeys.add(key);
-                await new Promise(resolve => setTimeout(resolve, 0));
-                updateProgress(pos + 1, totalPositions, validKeys.size);
+    static checkKeyPeriodicity(fullKeyFragment, maxLength) {
+        const candidates = new Set();
+        for (let len = 1; len <= Math.min(maxLength, fullKeyFragment.length); len++) {
+            const base = fullKeyFragment.slice(0, len);
+            const reconstructed = base.repeat(Math.ceil(fullKeyFragment.length / len)).slice(0, fullKeyFragment.length);
+            if (reconstructed === fullKeyFragment) {
+                candidates.add(base);
             }
         }
+        return Array.from(candidates);
+    }
+
+    static async processPosition(pos, ciphertext, known, alphabet, maxKeyLen, update) {
+        const keyFragment = Array.from(known).map((pChar, i) => {
+            const c = ciphertext[pos + i];
+            const pIdx = alphabet.indexOf(pChar);
+            const cIdx = alphabet.indexOf(c);
+            return (pIdx !== -1 && cIdx !== -1) 
+                ? alphabet[(cIdx - pIdx + alphabet.length) % alphabet.length]
+                : null;
+        }).filter(c => c !== null).join('');
+
+        if (keyFragment.length !== known.length) return;
+
+        const possibleKeys = this.checkKeyPeriodicity(keyFragment, maxKeyLen);
         
-        return Array.from(validKeys);
+        for (const key of possibleKeys) {
+            const decrypted = this.decrypt(ciphertext, key, alphabet);
+            if (decrypted.includes(known)) {
+                results.add(JSON.stringify({
+                    key,
+                    positions: [pos],
+                    decrypted
+                }));
+                await update();
+            }
+        }
     }
 }
 
@@ -121,31 +131,37 @@ async function start() {
     const ciphertext = document.getElementById('ciphertext').value.toUpperCase();
     const known = document.getElementById('knownText').value.toUpperCase();
     const alphabet = [...new Set(document.getElementById('alphabet').value.toUpperCase())].join('');
-    const keyLength = parseInt(document.getElementById('keyLength').value);
+    const maxKeyLen = parseInt(document.getElementById('maxKeyLength').value);
 
     if (alphabet.length !== 26) {
         alert("Alphabet must contain exactly 26 unique characters!");
         return;
     }
 
-    results = [];
+    results.clear();
     currentPos = 0;
     document.getElementById('results').innerHTML = '';
-    
-    const updateProgress = (current, total, found) => {
+    const total = ciphertext.length - known.length;
+
+    const updateProgress = async () => {
         document.getElementById('progress').innerHTML = 
-            `Processed: ${current}/${total} positions<br>Found keys: ${found}`;
+            `Processed: ${currentPos}/${total} positions<br>Found keys: ${results.size}`;
+        await new Promise(resolve => setTimeout(resolve, 0));
     };
 
-    const validKeys = await PreciseSolver.findExactKeys(
-        ciphertext, 
-        known, 
-        alphabet, 
-        keyLength,
-        updateProgress
-    );
+    for (currentPos = 0; currentPos <= total; currentPos++) {
+        if (!isRunning) break;
+        await AdvancedSolver.processPosition(
+            currentPos,
+            ciphertext,
+            known,
+            alphabet,
+            maxKeyLen,
+            updateProgress
+        );
+    }
 
-    displayResults(validKeys, ciphertext, alphabet, known);
+    displayResults();
     isRunning = false;
     document.getElementById('stopBtn').disabled = true;
 }
@@ -155,10 +171,10 @@ function stop() {
     document.getElementById('stopBtn').disabled = true;
 }
 
-function displayResults(keys, ciphertext, alphabet, known) {
+function displayResults() {
     const resultsDiv = document.getElementById('results');
-    resultsDiv.innerHTML = keys.map(key => {
-        const decrypted = PreciseSolver.decrypt(ciphertext, key, alphabet);
+    resultsDiv.innerHTML = Array.from(results).map(entry => {
+        const {key, decrypted} = JSON.parse(entry);
         return `
             <div style="margin-bottom: 2rem;">
                 <strong>🔑 ${key}</strong> (length: ${key.length})<br>
