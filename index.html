@@ -95,11 +95,11 @@ class VigenèreMaster {
                 : null;
         }).filter(c => c !== null).join('');
 
-        // Проверка всех возможных базовых ключей
         const candidates = new Set();
         for (let len = 1; len <= targetKeyLength; len++) {
             const baseKey = fullKeyFragment.slice(0, len);
-            if (baseKey.repeat(Math.ceil(fullKeyFragment.length / len)).startsWith(fullKeyFragment)) {
+            const repeatedKey = baseKey.repeat(Math.ceil(fullKeyFragment.length / len));
+            if (repeatedKey.startsWith(fullKeyFragment)) {
                 candidates.add(baseKey);
             }
         }
