@@ -1,54 +1,25 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>CryptoUltimate</title>
+    <title>CryptoPro Analyzer</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root {
-            --bg: #1a1a1a;
-            --text: #00ff00;
-            --border: #00ff0080;
+        body { font-family: monospace; background: #0a0a0a; color: #00ff00; padding: 20px; }
+        .container { max-width: 1200px; margin: auto; }
+        textarea, button, pre { 
+            background: #000; color: #0f0; border: 1px solid #0f0; 
+            width: 100%; margin: 10px 0; padding: 10px;
         }
-        body {
-            font-family: monospace;
-            background: var(--bg);
-            color: var(--text);
-            margin: 2rem;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        textarea, button, pre {
-            background: #000;
-            color: var(--text);
-            border: 1px solid var(--border);
-            padding: 10px;
-            margin: 5px 0;
-            width: 100%;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-            margin: 2rem 0;
-        }
-        canvas {
-            background: #000;
-        }
-        .hypothesis {
-            padding: 1rem;
-            border: 1px solid var(--border);
-            margin: 1rem 0;
-        }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        canvas { background: #000; }
+        .hypothesis { border: 1px solid #0f0; padding: 15px; margin: 10px 0; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔐 CryptoUltimate 10.0</h1>
-        <textarea id="input" rows="5" placeholder="Paste ciphertext here..."></textarea>
+        <h1>🛠️ CryptoPro Analyzer</h1>
+        <textarea id="ciphertext" rows="5" placeholder="Ciphertext..."></textarea>
         <button onclick="startAnalysis()">Analyze</button>
-        
         <div class="grid">
             <div id="results"></div>
             <canvas id="chart"></canvas>
@@ -56,14 +27,13 @@
     </div>
 
 <script>
-const CipherMaster = {
-    // Метод Касиски
-    kasiski: (text) => {
+const CryptoPro = {
+    // 1. Метод Касиски для Виженера
+    kasiski: (text, gramSize = 3) => {
         const grams = {};
-        for (let i = 0; i < text.length - 2; i++) {
-            const gram = text.substr(i, 3);
-            grams[gram] = grams[gram] || [];
-            grams[gram].push(i);
+        for (let i = 0; i < text.length - gramSize + 1; i++) {
+            const gram = text.slice(i, i + gramSize);
+            grams[gram] = grams[gram] ? [...grams[gram], i] : [i];
         }
         
         const distances = [];
@@ -82,101 +52,124 @@ const CipherMaster = {
             }
         });
         
-        return Object.entries(factors).sort((a,b) => b[1] - a[1])[0]?.[0] || null;
+        return Object.entries(factors).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
     },
 
-    // Транспозиция
-    transpose: (text, rows) => {
-        const cols = Math.ceil(text.length / rows);
-        const matrix = Array.from({length: rows}, () => []);
+    // 2. Транспозиция с автоподбором матриц
+    transpose: (text, rows, cols) => {
+        const matrix = Array.from({ length: rows }, () => []);
         for (let i = 0; i < text.length; i++) {
             matrix[i % rows].push(text[i]);
         }
         return matrix.flat().join('');
     },
 
-    // Частотный анализ
+    // 3. Частотный анализ и N-граммы
     frequency: (text) => {
         const freq = {};
         for (const c of text) freq[c] = (freq[c] || 0) + 1;
-        return Object.entries(freq).sort((a,b) => b[1] - a[1]);
+        return Object.entries(freq).sort((a, b) => b[1] - a[1]);
     },
 
-    // Полный анализ
-    analyze: (text) => {
-        const report = [];
-        
-        // 1. Метод Касиски
-        const keyLength = CipherMaster.kasiski(text);
-        if (keyLength) {
-            report.push({
-                type: 'Vigenère',
-                keyLength: keyLength,
-                confidence: Math.min(100, keyLength * 15)
-            });
+    ngrams: (text, n = 2) => {
+        const grams = {};
+        for (let i = 0; i < text.length - n + 1; i++) {
+            const gram = text.slice(i, i + n);
+            grams[gram] = (grams[gram] || 0) + 1;
         }
+        return Object.entries(grams).sort((a, b) => b[1] - a[1]);
+    },
 
-        // 2. Транспозиция
-        for (let rows = 2; rows <= 5; rows++) {
-            const transposed = CipherMaster.transpose(text, rows);
-            if (/( the | and )/i.test(transposed)) {
-                report.push({
-                    type: 'Transposition',
-                    matrix: `${rows}x${Math.ceil(text.length/rows)}`,
-                    preview: transposed.slice(0, 50),
-                    confidence: 70
-                });
+    // 4. XOR-брутфорс
+    xorBrute: (cipher, sample = ' the ') => {
+        const keys = [];
+        for (let key = 1; key < 256; key++) {
+            const decoded = cipher.split('').map(c => 
+                String.fromCharCode(c.charCodeAt(0) ^ key)
+            ).join('');
+            if (decoded.includes(sample)) {
+                keys.push({ key: key.toString(16), decoded });
             }
         }
+        return keys;
+    },
 
-        // 3. Частотный анализ
-        const freq = CipherMaster.frequency(text);
-        if (freq[0][1] > text.length * 0.15) {
-            report.push({
-                type: 'Substitution',
-                topChar: freq[0][0],
-                confidence: 85
-            });
-        }
-
-        return report;
+    // 5. Декодирование Base64/HEX
+    decode: (text, enc) => {
+        try {
+            if (enc === 'base64') return atob(text);
+            if (enc === 'hex') return text.match(/.{1,2}/g)?.map(v => 
+                String.fromCharCode(parseInt(v, 16))).join('') || '';
+        } catch(e) { return null; }
+        return text;
     }
 };
 
 function startAnalysis() {
-    const text = document.getElementById('input').value;
-    const results = CipherMaster.analyze(text);
-    
-    // Очистка предыдущих результатов
+    const cipher = document.getElementById('ciphertext').value;
     const resultsDiv = document.getElementById('results');
     resultsDiv.innerHTML = '';
-    
-    // Рендер результатов
-    results.forEach(result => {
-        const div = document.createElement('div');
-        div.className = 'hypothesis';
-        div.innerHTML = `
-            <h3>${result.type} (${result.confidence}%)</h3>
-            ${result.keyLength ? `Key length: ${result.keyLength}<br>` : ''}
-            ${result.matrix ? `Matrix: ${result.matrix}<br>` : ''}
-            ${result.preview ? `Preview: ${result.preview}` : ''}
-        `;
-        resultsDiv.appendChild(div);
+
+    // 1. Проверка кодировок
+    ['base64', 'hex'].forEach(enc => {
+        const decoded = CryptoPro.decode(cipher, enc);
+        if (decoded && decoded !== cipher) {
+            resultsDiv.innerHTML += `
+                <div class="hypothesis">
+                    <strong>ENCODING (${enc})</strong><br>
+                    Decoded: <pre>${decoded.slice(0, 100)}</pre>
+                </div>
+            `;
+        }
     });
 
-    // Отрисовка графика
-    const freqData = CipherMaster.frequency(text);
+    // 2. Метод Касиски
+    const keyLen = CryptoPro.kasiski(cipher);
+    if (keyLen) {
+        resultsDiv.innerHTML += `
+            <div class="hypothesis">
+                <strong>VIGENERE</strong><br>
+                Possible key length: ${keyLen}
+            </div>
+        `;
+    }
+
+    // 3. Транспозиция
+    const matrices = [2, 3, 4, 5].map(rows => ({
+        rows,
+        cols: Math.ceil(cipher.length / rows),
+        text: CryptoPro.transpose(cipher, rows, Math.ceil(cipher.length / rows))
+    }));
+    
+    matrices.forEach(m => {
+        resultsDiv.innerHTML += `
+            <div class="hypothesis">
+                <strong>TRANSPOSITION (${m.rows}x${m.cols})</strong><br>
+                Candidate: <pre>${m.text.slice(0, 100)}</pre>
+            </div>
+        `;
+    });
+
+    // 4. Частотный анализ
+    const freq = CryptoPro.frequency(cipher);
     new Chart(document.getElementById('chart').getContext('2d'), {
         type: 'bar',
         data: {
-            labels: freqData.map(d => d[0]),
-            datasets: [{
-                label: 'Character Frequency',
-                data: freqData.map(d => d[1]),
-                backgroundColor: '#00ff0050'
-            }]
+            labels: freq.map(d => d[0]),
+            datasets: [{ label: 'Frequency', data: freq.map(d => d[1]) }]
         }
     });
+
+    // 5. XOR-брутфорс
+    const xorKeys = CryptoPro.xorBrute(cipher);
+    if (xorKeys.length > 0) {
+        resultsDiv.innerHTML += `
+            <div class="hypothesis">
+                <strong>XOR</strong><br>
+                Possible keys: ${xorKeys.map(k => `0x${k.key}`).join(', ')}
+            </div>
+        `;
+    }
 }
 </script>
 </body>
