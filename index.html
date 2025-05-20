@@ -12,30 +12,29 @@
         
         <div class="input-group">
             <label for="ciphertext">Шифртекст:</label>
-            <textarea id="ciphertext" rows="3" placeholder="Введите зашифрованный текст...">OBKRUOXOGHULBSOLIFBBWFLRVQQPRNGKSSOTWTQSJQSSEKZZWATJKLUDIAWINFBNYPVTTMZFPKWGDKZXTJCDIGKUHUAUEKCAR</textarea>
+            <textarea id="ciphertext" rows="3">OBKRUOXOGHULBSOLIFBBWFLRVQQPRNGKSSOTWTQSJQSSEKZZWATJKLUDIAWINFBNYPVTTMZFPKWGDKZXTJCDIGKUHUAUEKCAR</textarea>
         </div>
         
         <div class="input-row">
             <div class="input-group">
                 <label for="knownText">Известный текст:</label>
-                <input type="text" id="knownText" placeholder="BERLIN" value="BERLIN">
+                <input type="text" id="knownText" value="BERLIN">
             </div>
             
             <div class="input-group">
                 <label for="alphabet">Алфавит:</label>
-                <input type="text" id="alphabet" placeholder="Кастомный алфавит" value="KRYPTOSABCDEFGHIJLMNQUVWXZ">
+                <input type="text" id="alphabet" value="KRYPTOSABCDEFGHIJLMNQUVWXZ">
             </div>
         </div>
         
         <div class="actions">
             <button id="crackBtn">Найти все ключи</button>
             <button id="verifyBtn" disabled>Проверить ключ</button>
-            <button id="exportBtn">Экспорт результатов</button>
         </div>
         
         <div class="results">
             <div class="result-group">
-                <label for="keyResult">Найденные ключи:</label>
+                <label for="keyResults">Найденные ключи:</label>
                 <select id="keyResults" size="5" multiple></select>
             </div>
             
@@ -46,14 +45,9 @@
         </div>
         
         <div id="status"></div>
-        
-        <div class="details">
-            <h3>Детали анализа:</h3>
-            <div id="analysisDetails"></div>
-        </div>
+        <div class="details" id="analysisDetails"></div>
     </div>
 
-    <script src="worker.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
