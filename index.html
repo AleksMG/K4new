@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultimate Vigenère Cracker</title>
+    <title>Advanced Vigenère Cracker</title>
     <style>
         :root {
             --primary: #2c3e50;
@@ -143,7 +143,7 @@
 <script>
 'use strict';
 
-class VigenereSolver {
+class AdvancedVigenèreCracker {
     constructor() {
         this.worker = this.createWorker();
     }
@@ -157,46 +157,65 @@ class VigenereSolver {
                 const knownUpper = known.toUpperCase();
                 const knownLen = knownUpper.length;
 
+                function generateKeys(fragment, maxLen) {
+                    const keys = new Set();
+                    for (let len = 1; len <= maxLen; len++) {
+                        for (let offset = 0; offset < fragment.length; offset++) {
+                            const base = fragment.substr(offset, len);
+                            if (base.length === 0) continue;
+                            
+                            let isValid = true;
+                            for (let i = 0; i < fragment.length; i++) {
+                                if (fragment[i] !== base[i % base.length]) {
+                                    isValid = false;
+                                    break;
+                                }
+                            }
+                            if (isValid) keys.add(base);
+                        }
+                    }
+                    return Array.from(keys);
+                }
+
+                function decryptWithOffset(text, key, offset) {
+                    return Array.from(text, (c, i) => {
+                        const keyIndex = (i - offset + key.length) % key.length;
+                        const cIdx = alphabet.indexOf(c);
+                        const kIdx = alphabet.indexOf(key[keyIndex]);
+                        return (cIdx !== -1 && kIdx !== -1) ?
+                            alphabet[(cIdx - kIdx + alphabet.length) % alphabet.length] : '�';
+                    }).join('');
+                }
+
                 for (let pos = 0; pos <= ciphertext.length - knownLen; pos++) {
                     const fragment = ciphertext.substr(pos, knownLen);
                     const keyFragment = Array.from(knownUpper, (pChar, i) => {
                         const cIdx = alphabet.indexOf(fragment[i]);
                         const pIdx = alphabet.indexOf(pChar);
-                        return cIdx >= 0 && pIdx >= 0 ? 
+                        return (cIdx !== -1 && pIdx !== -1) ?
                             alphabet[(cIdx - pIdx + mod) % mod] : null;
                     }).filter(c => c !== null).join('');
 
-                    for (let keyLen = 1; keyLen <= maxKeyLength; keyLen++) {
-                        const base = keyFragment.substr(0, keyLen);
-                        if (keyFragment === base.repeat(Math.ceil(keyFragment.length / keyLen)).substr(0, keyFragment.length)) {
-                            const key = base;
-                            const decrypted = decrypt(ciphertext, key, alphabet);
-                            if (decrypted.includes(knownUpper)) {
-                                const entry = results.get(key) || { positions: [], decrypted };
-                                entry.positions.push(pos);
-                                results.set(key, entry);
-                            }
+                    const candidates = generateKeys(keyFragment, maxKeyLength);
+                    
+                    candidates.forEach(key => {
+                        const decrypted = decryptWithOffset(ciphertext, key, pos);
+                        if (decrypted.includes(knownUpper)) {
+                            const entry = results.get(key) || { positions: [], decrypted };
+                            if (!entry.positions.includes(pos)) entry.positions.push(pos);
+                            results.set(key, entry);
                         }
-                    }
+                    });
 
                     postMessage({ 
-                        type: 'progress', 
-                        current: pos + 1, 
-                        total: ciphertext.length - knownLen + 1 
+                        type: 'progress',
+                        current: pos + 1,
+                        total: ciphertext.length
                     });
                 }
 
                 postMessage({ type: 'results', data: Array.from(results.entries()) });
             };
-
-            function decrypt(text, key, alphabet) {
-                return Array.from(text, (c, i) => {
-                    const cIdx = alphabet.indexOf(c);
-                    const kIdx = alphabet.indexOf(key[i % key.length]);
-                    return cIdx >= 0 && kIdx >= 0 ?
-                        alphabet[(cIdx - kIdx + alphabet.length) % alphabet.length] : '�';
-                }).join('');
-            }
         `;
 
         const blob = new Blob([workerCode], { type: 'application/javascript' });
@@ -206,9 +225,8 @@ class VigenereSolver {
     analyze(params) {
         return new Promise((resolve) => {
             this.worker.onmessage = (e) => {
-                if (e.data.type === 'results') {
-                    resolve(e.data.data);
-                } else if (e.data.type === 'progress') {
+                if (e.data.type === 'results') resolve(e.data.data);
+                else if (e.data.type === 'progress') {
                     const progress = (e.data.current / e.data.total) * 100;
                     document.getElementById('progressBar').style.width = `${progress}%`;
                     document.getElementById('status').textContent = 
@@ -224,7 +242,7 @@ class VigenereSolver {
     }
 }
 
-let solver = null;
+let analyzer = null;
 
 document.getElementById('analyzeBtn').addEventListener('click', async () => {
     try {
@@ -246,21 +264,26 @@ document.getElementById('analyzeBtn').addEventListener('click', async () => {
         document.getElementById('results').innerHTML = '';
         document.getElementById('stopBtn').disabled = false;
         
-        solver = new VigenereSolver();
-        const results = await solver.analyze({ ciphertext, known, alphabet, maxKeyLength });
+        analyzer = new AdvancedVigenèreCracker();
+        const results = await analyzer.analyze({ 
+            ciphertext,
+            known,
+            alphabet,
+            maxKeyLength
+        });
         
         displayResults(results, known);
 
     } catch (error) {
         showError(error.message);
     } finally {
-        solver = null;
+        analyzer = null;
         document.getElementById('stopBtn').disabled = true;
     }
 });
 
 document.getElementById('stopBtn').addEventListener('click', () => {
-    if (solver) solver.terminate();
+    if (analyzer) analyzer.terminate();
 });
 
 function cleanInput(str) {
@@ -279,6 +302,7 @@ function displayResults(results, known) {
             <div class="result">
                 <strong>Key: ${key}</strong> (Length: ${key.length})<br>
                 Matches: ${data.positions.length}<br>
+                Positions: ${data.positions.join(', ')}<br>
                 Decrypted: ${highlightMatches(data.decrypted, known)}
             </div>
         `).join('');
