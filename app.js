@@ -114,10 +114,17 @@ class VigenereCracker {
         }).join('');
     }
 
-    highlightText(text, phrase) {
-        const regex = new RegExp(`(${phrase})`, 'gi');
-        return text.replace(regex, '<span class="highlight">$1</span>');
-    }
+    // В файле app.js, исправляем функцию highlightText
+highlightText(text, phrase) {
+    if (!phrase) return text; // Добавляем проверку на пустую фразу
+    const regex = new RegExp(`(${this.escapeRegExp(phrase)})`, 'gi');
+    return text.replace(regex, '<span class="highlight">$1</span>');
+}
+
+// Добавляем отсутствующую функцию экранирования
+escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
     updateProgress({ processed, total }) {
         const percent = Math.round((processed / total) * 100);
