@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vigenère Breaker Pro</title>
     <style>
+        /* Стили остаются без изменений */
         :root {
             --primary: #4285F4;
             --secondary: #34A853;
@@ -362,9 +363,6 @@
     </div>
 
     <script>
-        // ========================
-        // Основной класс приложения
-        // ========================
         class VigenereBreakerPro {
             constructor() {
                 this.workers = [];
@@ -377,9 +375,9 @@
                 this.resultsLimit = 10;
                 this.updateInterval = null;
                 this.completedWorkers = 0;
+                this.currentTaskId = 0;
                 this.lastSpeedUpdate = 0;
                 this.lastSpeedKeys = 0;
-                this.currentTaskId = 0;
             }
 
             init(alphabet, workers, maxKeyLength, resultsLimit) {
@@ -526,6 +524,7 @@
                             const results = [];
                             let processed = 0;
                             let batchResults = [];
+                            let lastReport = performance.now();
                             
                             // Генерация ключей в заданном диапазоне
                             const generator = cipher.generateKeys(maxKeyLength);
@@ -792,10 +791,11 @@
             showAlert(message, type) {
                 const alertEl = document.getElementById('alert');
                 alertEl.textContent = message;
-                alertEl.className = \`alert alert-\${type} active\`;
+                alertEl.className = \`alert alert-\${type}\`;
+                alertEl.style.display = 'block';
                 
                 setTimeout(() => {
-                    alertEl.classList.remove('active');
+                    alertEl.style.display = 'none';
                 }, 5000);
             }
 
@@ -833,13 +833,9 @@
             }
         }
 
-        // ========================
-        // Инициализация приложения
-        // ========================
         document.addEventListener('DOMContentLoaded', () => {
             const breaker = new VigenereBreakerPro();
             
-            // Обработчики элементов управления
             document.getElementById('workers').addEventListener('input', function() {
                 document.getElementById('workersValue').textContent = this.value;
             });
@@ -852,7 +848,6 @@
                 document.getElementById('resultsLimitValue').textContent = this.value;
             });
             
-            // Запуск атаки
             document.getElementById('startBtn').addEventListener('click', () => {
                 const alphabet = document.getElementById('alphabet').value;
                 const workers = parseInt(document.getElementById('workers').value);
@@ -866,12 +861,10 @@
                 }
             });
             
-            // Остановка атаки
             document.getElementById('stopBtn').addEventListener('click', () => {
                 breaker.stop();
             });
             
-            // Сохранение результатов
             document.getElementById('saveBtn').addEventListener('click', () => {
                 breaker.saveResults();
             });
