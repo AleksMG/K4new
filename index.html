@@ -83,6 +83,8 @@
             background: #5F6368;
             border-radius: 3px;
             -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
         }
 
         input[type="range"]::-webkit-slider-thumb {
@@ -453,16 +455,23 @@
                         }
 
                         *generateKeys(maxLength) {
-                            function* generate(prefix, alphabet, maxLength) {
-                                if (prefix.length === maxLength) {
+                            function* generateAllLengths(alphabet, maxLength) {
+                                for (let len = 1; len <= maxLength; len++) {
+                                    yield* generateFixedLength('', alphabet, len);
+                                }
+                            }
+                            
+                            function* generateFixedLength(prefix, alphabet, len) {
+                                if (prefix.length === len) {
                                     yield prefix;
                                     return;
                                 }
                                 for (const char of alphabet) {
-                                    yield* generate(prefix + char, alphabet, maxLength);
+                                    yield* generateFixedLength(prefix + char, alphabet, len);
                                 }
                             }
-                            yield* generate('', this.alphabet, maxLength);
+                            
+                            yield* generateAllLengths(this.alphabet, maxLength);
                         }
                     }
 
@@ -599,6 +608,11 @@
                     return;
                 }
 
+                if (maxKeyLength < 1) {
+                    this.showAlert("Длина ключа должна быть не менее 1", "error");
+                    return;
+                }
+
                 this.isRunning = true;
                 this.startTime = performance.now();
                 this.lastSpeedUpdate = this.startTime;
@@ -682,8 +696,6 @@
 
             renderResults() {
                 const container = document.getElementById('resultsContainer');
-                if (!container) return;
-                
                 container.innerHTML = '';
                 
                 if (this.results.length === 0) {
@@ -693,15 +705,15 @@
                 
                 this.results.forEach((result, i) => {
                     const div = document.createElement('div');
-                    div.className = \`result-item \${i === 0 ? 'best' : ''}\`;
+                    div.className = `result-item ${i === 0 ? 'best' : ''}`;
                     
-                    div.innerHTML = \`
+                    div.innerHTML = `
                         <div class="result-header">
-                            <span class="result-key">\${result.key}</span>
-                            <span class="result-score">\${result.score.toFixed(4)}</span>
+                            <span class="result-key">${result.key}</span>
+                            <span class="result-score">${result.score.toFixed(4)}</span>
                         </div>
-                        <div class="result-text">\${result.text}</div>
-                    \`;
+                        <div class="result-text">${result.text}</div>
+                    `;
                     
                     container.appendChild(div);
                 });
@@ -721,7 +733,7 @@
                 
                 const elapsed = ((performance.now() - this.startTime) / 1000).toFixed(2);
                 this.showAlert(
-                    \`Атака завершена! Проверено \${this.keysTested.toLocaleString()} ключей за \${elapsed} сек.\`, 
+                    `Атака завершена! Проверено ${this.keysTested.toLocaleString()} ключей за ${elapsed} сек.`, 
                     "info"
                 );
                 
@@ -757,16 +769,20 @@
                 if (!this.isRunning) return;
                 
                 const progress = Math.min(100, (this.keysTested / this.totalKeys * 100));
-                document.getElementById('progressBar').style.width = \`\${progress}%\`;
-                document.getElementById('progressValue').textContent = \`\${progress.toFixed(2)}%\`;
+                document.getElementById('progressBar').style.width = `${progress}%`;
+                document.getElementById('progressValue').textContent = `${progress.toFixed(2)}%`;
                 
                 const now = performance.now();
-                const elapsed = (now - this.startTime) / 1000;
-                const speed = Math.floor(this.keysTested / Math.max(1, elapsed));
-                document.getElementById('speed').textContent = speed.toLocaleString();
+                if (now - this.lastSpeedUpdate > 500) {
+                    const elapsed = (now - this.startTime) / 1000;
+                    const speed = Math.floor((this.keysTested - this.lastSpeedKeys) / ((now - this.lastSpeedUpdate)/1000));
+                    document.getElementById('speed').textContent = speed.toLocaleString();
+                    this.lastSpeedUpdate = now;
+                    this.lastSpeedKeys = this.keysTested;
+                }
                 
-                if (speed > 0) {
-                    const remaining = (this.totalKeys - this.keysTested) / speed;
+                if (parseInt(document.getElementById('speed').textContent.replace(/,/g, '')) {
+                    const remaining = (this.totalKeys - this.keysTested) / parseInt(document.getElementById('speed').textContent.replace(/,/g, ''));
                     document.getElementById('timeLeft').textContent = this.formatTime(remaining);
                 }
                 
@@ -776,22 +792,27 @@
             }
 
             calculateTotalKeys(alphabetSize, maxLength) {
-                return alphabetSize * (Math.pow(alphabetSize, maxLength) - 1) / (alphabetSize - 1);
+                let total = 0;
+                for (let len = 1; len <= maxLength; len++) {
+                    total += Math.pow(alphabetSize, len);
+                }
+                return total;
             }
 
             formatTime(seconds) {
-                if (seconds < 60) return \`\${Math.ceil(seconds)} сек\`;
-                if (seconds < 3600) return \`\${Math.floor(seconds / 60)} мин \${Math.ceil(seconds % 60)} сек\`;
+                if (isNaN(seconds) return '-';
+                if (seconds < 60) return `${Math.ceil(seconds)} сек`;
+                if (seconds < 3600) return `${Math.floor(seconds / 60)} мин ${Math.ceil(seconds % 60)} сек`;
                 
                 const hours = Math.floor(seconds / 3600);
                 const minutes = Math.floor((seconds % 3600) / 60);
-                return \`\${hours} ч \${minutes} мин\`;
+                return `${hours} ч ${minutes} мин`;
             }
 
             showAlert(message, type) {
                 const alertEl = document.getElementById('alert');
                 alertEl.textContent = message;
-                alertEl.className = \`alert alert-\${type}\`;
+                alertEl.className = `alert alert-${type}`;
                 alertEl.style.display = 'block';
                 
                 setTimeout(() => {
@@ -805,25 +826,25 @@
                     return;
                 }
                 
-                let content = \`Результаты взлома шифра Виженера\\n\`;
-                content += \`Дата: \${new Date().toLocaleString()}\\n\`;
-                content += \`Проверено ключей: \${this.keysTested}\\n\`;
-                content += \`Алфавит: \${document.getElementById('alphabet').value}\\n\`;
-                content += \`Метод оценки: \${document.getElementById('scoringMethod').value}\\n\`;
-                content += \`Макс. длина ключа: \${document.getElementById('keyLength').value}\\n\\n\`;
+                let content = `Результаты взлома шифра Виженера\n`;
+                content += `Дата: ${new Date().toLocaleString()}\n`;
+                content += `Проверено ключей: ${this.keysTested}\n`;
+                content += `Алфавит: ${document.getElementById('alphabet').value}\n`;
+                content += `Метод оценки: ${document.getElementById('scoringMethod').value}\n`;
+                content += `Макс. длина ключа: ${document.getElementById('keyLength').value}\n\n`;
                 
                 this.results.forEach((result, i) => {
-                    content += \`=== Результат \${i + 1} ===\\n\`;
-                    content += \`Ключ: \${result.key}\\n\`;
-                    content += \`Оценка: \${result.score.toFixed(4)}\\n\`;
-                    content += \`Текст: \${result.text}\\n\\n\`;
+                    content += `=== Результат ${i + 1} ===\n`;
+                    content += `Ключ: ${result.key}\n`;
+                    content += `Оценка: ${result.score.toFixed(4)}\n`;
+                    content += `Текст: ${result.text}\n\n`;
                 });
                 
                 const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = \`vigenere_results_\${new Date().toISOString().slice(0, 10)}.txt\`;
+                a.download = `vigenere_results_${new Date().toISOString().slice(0, 10)}.txt`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -837,20 +858,22 @@
             const breaker = new VigenereBreakerPro();
             
             // Инициализация значений ползунков
-            const updateSliderValue = (sliderId, outputId) => {
-                const slider = document.getElementById(sliderId);
-                const output = document.getElementById(outputId);
-                if (slider && output) {
-                    output.textContent = slider.value;
-                    slider.addEventListener('input', function() {
-                        output.textContent = this.value;
-                    });
-                }
-            };
+            document.getElementById('workersValue').textContent = document.getElementById('workers').value;
+            document.getElementById('keyLengthValue').textContent = document.getElementById('keyLength').value;
+            document.getElementById('resultsLimitValue').textContent = document.getElementById('resultsLimit').value;
             
-            updateSliderValue('workers', 'workersValue');
-            updateSliderValue('keyLength', 'keyLengthValue');
-            updateSliderValue('resultsLimit', 'resultsLimitValue');
+            // Обработчики изменения ползунков
+            document.getElementById('workers').addEventListener('input', function() {
+                document.getElementById('workersValue').textContent = this.value;
+            });
+            
+            document.getElementById('keyLength').addEventListener('input', function() {
+                document.getElementById('keyLengthValue').textContent = this.value;
+            });
+            
+            document.getElementById('resultsLimit').addEventListener('input', function() {
+                document.getElementById('resultsLimitValue').textContent = this.value;
+            });
             
             // Запуск атаки
             document.getElementById('startBtn').addEventListener('click', () => {
