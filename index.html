@@ -837,22 +837,20 @@
             const breaker = new VigenereBreakerPro();
             
             // Инициализация значений ползунков
-            document.getElementById('workersValue').textContent = document.getElementById('workers').value;
-            document.getElementById('keyLengthValue').textContent = document.getElementById('keyLength').value;
-            document.getElementById('resultsLimitValue').textContent = document.getElementById('resultsLimit').value;
+            const updateSliderValue = (sliderId, outputId) => {
+                const slider = document.getElementById(sliderId);
+                const output = document.getElementById(outputId);
+                if (slider && output) {
+                    output.textContent = slider.value;
+                    slider.addEventListener('input', function() {
+                        output.textContent = this.value;
+                    });
+                }
+            };
             
-            // Обработчики изменения ползунков
-            document.getElementById('workers').addEventListener('input', function() {
-                document.getElementById('workersValue').textContent = this.value;
-            });
-            
-            document.getElementById('keyLength').addEventListener('input', function() {
-                document.getElementById('keyLengthValue').textContent = this.value;
-            });
-            
-            document.getElementById('resultsLimit').addEventListener('input', function() {
-                document.getElementById('resultsLimitValue').textContent = this.value;
-            });
+            updateSliderValue('workers', 'workersValue');
+            updateSliderValue('keyLength', 'keyLengthValue');
+            updateSliderValue('resultsLimit', 'resultsLimitValue');
             
             // Запуск атаки
             document.getElementById('startBtn').addEventListener('click', () => {
