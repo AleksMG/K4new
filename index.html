@@ -1,326 +1,271 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Брутфорс Плейфера со словарём</title>
+    <title>Playfair Brute Force</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
-            line-height: 1.6;
         }
-        .container {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-        textarea, button, pre, input {
-            width: 100%;
-            margin: 5px 0;
-            padding: 8px;
-            box-sizing: border-box;
-        }
-        #output {
-            white-space: pre-wrap;
-            background: #f5f5f5;
-            padding: 10px;
-            min-height: 100px;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        .status {
-            color: #666;
-            font-size: 0.9em;
-        }
-        .file-input {
-            display: none;
-        }
-        .file-label {
-            display: inline-block;
-            padding: 8px 15px;
-            background: #4CAF50;
-            color: white;
-            cursor: pointer;
-            border-radius: 4px;
-            text-align: center;
-        }
-        .controls {
-            display: flex;
-            gap: 10px;
-            margin: 10px 0;
+        #controls {
+            margin: 20px 0;
         }
         button {
-            padding: 10px;
-            background: #2196F3;
+            padding: 10px 15px;
+            margin-right: 10px;
+            background: #4CAF50;
             color: white;
             border: none;
-            border-radius: 4px;
             cursor: pointer;
         }
         button:disabled {
             background: #cccccc;
         }
+        #ciphertext {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 15px;
+        }
+        #output {
+            background: #f5f5f5;
+            padding: 15px;
+            height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .status {
+            margin: 10px 0;
+            color: #666;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Брутфорс шифра Плейфера</h1>
-        
-        <label for="ciphertext">Шифротекст (только буквы A-Z, без пробелов):</label>
-        <input type="text" id="ciphertext" value="DMQPQSPSX">
-        
-        <div class="controls">
-            <label for="dictionaryFile" class="file-label">Загрузить словарь (.txt)</label>
-            <input type="file" id="dictionaryFile" class="file-input" accept=".txt">
-            <button id="startButton">Начать брутфорс</button>
-            <button id="stopButton" disabled>Остановить</button>
-        </div>
-        
-        <div class="status">Загружено слов: <span id="wordCount">0</span></div>
-        <div class="status">Проверено: <span id="checkedCount">0</span></div>
-        <div class="status">Скорость: <span id="speed">0</span> слов/сек</div>
-        
-        <label for="output">Результаты:</label>
-        <pre id="output">Здесь будут появляться найденные ключи...</pre>
+    <h1>Playfair Brute Force</h1>
+    <input type="text" id="ciphertext" value="DMQPQSPSX" placeholder="Enter ciphertext (A-Z only)">
+    <div id="controls">
+        <button id="start">Start</button>
+        <button id="stop" disabled>Stop</button>
     </div>
+    <div class="status">
+        Checked: <span id="counter">0</span> | 
+        Speed: <span id="speed">0</span>/sec |
+        Found: <span id="found">0</span>
+    </div>
+    <pre id="output">Ready. Dictionary will load automatically.</pre>
 
     <script>
-        // Глобальные переменные
-        let dictionary = [];
-        let workers = [];
-        let isRunning = false;
-        let checkedWords = 0;
-        let lastUpdate = 0;
-        let speed = 0;
+    // Полная реализация брутфорсера
+    let dictionary = [];
+    let isRunning = false;
+    let workers = [];
+    let checked = 0;
+    let found = 0;
+    let startTime = 0;
+    let speedInterval;
+
+    // Загрузка словаря
+    async function loadDictionary() {
+        try {
+            const response = await fetch('words.txt');
+            const text = await response.text();
+            dictionary = text.split('\n')
+                .map(word => word.trim().toUpperCase())
+                .filter(word => word.length >= 4 && word.length <= 12 && !/(.).*\1/.test(word));
+            document.getElementById('output').textContent = `Loaded ${dictionary.length} words`;
+        } catch (e) {
+            document.getElementById('output').textContent = `Error loading dictionary: ${e}`;
+        }
+    }
+
+    // Матрица Плейфера
+    function buildMatrix(key) {
+        const matrix = [];
+        const used = new Set();
+        const alphabet = "ABCDEFGHIKLMNOPQRSTUVWXYZ";
         
-        // Загрузка словаря из файла
-        document.getElementById('dictionaryFile').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+        // Добавляем буквы ключа
+        for (const char of key) {
+            const c = char === 'J' ? 'I' : char;
+            if (!used.has(c)) {
+                if (matrix.length === 0 || matrix[matrix.length-1].length === 5) {
+                    matrix.push([]);
+                }
+                matrix[matrix.length-1].push(c);
+                used.add(c);
+            }
+        }
+
+        // Добавляем остальные буквы
+        for (const char of alphabet) {
+            if (!used.has(char)) {
+                if (matrix.length === 0 || matrix[matrix.length-1].length === 5) {
+                    matrix.push([]);
+                }
+                matrix[matrix.length-1].push(char);
+            }
+        }
+
+        return matrix;
+    }
+
+    // Дешифровка биграммы
+    function decryptBigram(a, b, matrix) {
+        let aPos, bPos;
+        
+        // Находим позиции букв
+        for (let i = 0; i < 5; i++) {
+            for (let j = 0; j < 5; j++) {
+                if (matrix[i][j] === a) aPos = {i, j};
+                if (matrix[i][j] === b) bPos = {i, j};
+            }
+        }
+
+        // Правила дешифровки
+        if (aPos.i === bPos.i) { // Одна строка
+            return [
+                matrix[aPos.i][(aPos.j - 1 + 5) % 5],
+                matrix[bPos.i][(bPos.j - 1 + 5) % 5]
+            ];
+        } else if (aPos.j === bPos.j) { // Один столбец
+            return [
+                matrix[(aPos.i - 1 + 5) % 5][aPos.j],
+                matrix[(bPos.i - 1 + 5) % 5][bPos.j]
+            ];
+        } else { // Прямоугольник
+            return [
+                matrix[aPos.i][bPos.j],
+                matrix[bPos.i][aPos.j]
+            ];
+        }
+    }
+
+    // Дешифровка всего текста
+    function decryptPlayfair(ciphertext, key) {
+        const matrix = buildMatrix(key);
+        let plaintext = '';
+        
+        for (let i = 0; i < ciphertext.length; i += 2) {
+            const [p1, p2] = decryptBigram(ciphertext[i], ciphertext[i+1], matrix);
+            plaintext += p1 + p2;
+        }
+        
+        return plaintext;
+    }
+
+    // Проверка на осмысленный текст
+    function isMeaningful(text) {
+        const common = ['THE', 'AND', 'ING', 'HER', 'HAT', 'FOR', 'ARE'];
+        return common.some(word => text.includes(word));
+    }
+
+    // Запуск брутфорса
+    async function startBruteForce() {
+        if (isRunning) return;
+        if (dictionary.length === 0) {
+            await loadDictionary();
+            if (dictionary.length === 0) return;
+        }
+
+        const ciphertext = document.getElementById('ciphertext').value
+            .toUpperCase()
+            .replace(/[^A-Z]/g, '');
+        
+        if (ciphertext.length % 2 !== 0) {
+            document.getElementById('output').textContent = "Ciphertext must have even length";
+            return;
+        }
+
+        isRunning = true;
+        checked = 0;
+        found = 0;
+        startTime = Date.now();
+        document.getElementById('start').disabled = true;
+        document.getElementById('stop').disabled = false;
+        document.getElementById('output').textContent = "Starting brute force...\n";
+
+        speedInterval = setInterval(() => {
+            const elapsed = (Date.now() - startTime) / 1000;
+            document.getElementById('counter').textContent = checked;
+            document.getElementById('speed').textContent = Math.round(checked / elapsed);
+            document.getElementById('found').textContent = found;
+        }, 200);
+
+        // Используем Web Workers для многопоточности
+        const workerCode = `
+            ${buildMatrix.toString()}
+            ${decryptBigram.toString()}
+            ${decryptPlayfair.toString()}
+            ${isMeaningful.toString()}
             
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const content = e.target.result;
-                dictionary = content.toUpperCase()
-                    .split('\n')
-                    .map(word => word.trim().replace(/[^A-Z]/g, ''))
-                    .filter(word => word.length >= 4 && word.length <= 12);
+            onmessage = function(e) {
+                const { ciphertext, words } = e.data;
+                const results = [];
                 
-                document.getElementById('wordCount').textContent = dictionary.length;
-                document.getElementById('output').textContent = `Загружен словарь (${dictionary.length} слов). Можно начинать брутфорс.`;
+                for (const key of words) {
+                    const plaintext = decryptPlayfair(ciphertext, key);
+                    if (isMeaningful(plaintext)) {
+                        results.push({ key, plaintext });
+                    }
+                }
+                
+                postMessage(results);
             };
-            reader.readAsText(file);
-        });
-        
-        // Функция для создания матрицы Плейфера
-        function buildMatrix(key) {
-            const matrix = [[], [], [], [], []];
-            const used = new Set();
-            let row = 0, col = 0;
+        `;
+
+        const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
+        const workerUrl = URL.createObjectURL(workerBlob);
+
+        // Разделяем словарь на части
+        const workerCount = navigator.hardwareConcurrency || 4;
+        const chunkSize = Math.ceil(dictionary.length / workerCount);
+
+        for (let i = 0; i < workerCount; i++) {
+            const start = i * chunkSize;
+            const end = start + chunkSize;
+            const worker = new Worker(workerUrl);
             
-            // Добавляем буквы ключа (I и J объединены)
-            for (const char of key) {
-                const c = char === 'J' ? 'I' : char;
-                if (!used.has(c)) {
-                    matrix[row][col] = c;
-                    used.add(c);
-                    col++;
-                    if (col === 5) {
-                        col = 0;
-                        row++;
-                    }
-                }
-            }
+            worker.postMessage({
+                ciphertext: ciphertext,
+                words: dictionary.slice(start, end)
+            });
             
-            // Добавляем оставшиеся буквы алфавита
-            for (let i = 0; i < 26; i++) {
-                const c = String.fromCharCode(65 + (i >= 9 ? i + 1 : i)); // Пропускаем J
-                if (!used.has(c)) {
-                    matrix[row][col] = c;
-                    col++;
-                    if (col === 5) {
-                        col = 0;
-                        row++;
-                    }
-                }
-            }
-            
-            return matrix;
-        }
-        
-        // Функция дешифровки биграммы
-        function decryptBigram(a, b, matrix) {
-            let aRow, aCol, bRow, bCol;
-            
-            // Находим позиции букв в матрице
-            for (let row = 0; row < 5; row++) {
-                for (let col = 0; col < 5; col++) {
-                    if (matrix[row][col] === a) {
-                        aRow = row;
-                        aCol = col;
-                    }
-                    if (matrix[row][col] === b) {
-                        bRow = row;
-                        bCol = col;
-                    }
-                }
-            }
-            
-            // Правила дешифровки
-            if (aRow === bRow) {
-                return [
-                    matrix[aRow][(aCol - 1 + 5) % 5],
-                    matrix[bRow][(bCol - 1 + 5) % 5]
-                ];
-            } else if (aCol === bCol) {
-                return [
-                    matrix[(aRow - 1 + 5) % 5][aCol],
-                    matrix[(bRow - 1 + 5) % 5][bCol]
-                ];
-            } else {
-                return [
-                    matrix[aRow][bCol],
-                    matrix[bRow][aCol]
-                ];
-            }
-        }
-        
-        // Основная функция дешифровки
-        function decryptPlayfair(ciphertext, key) {
-            const matrix = buildMatrix(key);
-            let plaintext = '';
-            
-            // Разбиваем на биграммы и дешифруем
-            for (let i = 0; i < ciphertext.length; i += 2) {
-                const a = ciphertext[i];
-                const b = ciphertext[i+1];
-                const [p1, p2] = decryptBigram(a, b, matrix);
-                plaintext += p1 + p2;
-            }
-            
-            return plaintext;
-        }
-        
-        // Проверка на осмысленный текст
-        function isMeaningful(text) {
-            const commonBigrams = ['TH', 'HE', 'IN', 'ER', 'AN', 'RE', 'ES', 'ON'];
-            const commonWords = ['THE', 'AND', 'ING', 'HER', 'HAT', 'HIS', 'ERE'];
-            
-            // Проверяем частые биграммы
-            for (let i = 0; i < text.length - 1; i++) {
-                const bigram = text.substr(i, 2);
-                if (commonBigrams.includes(bigram)) {
-                    return true;
-                }
-            }
-            
-            // Проверяем частые слова
-            for (const word of commonWords) {
-                if (text.includes(word)) {
-                    return true;
-                }
-            }
-            
-            return false;
-        }
-        
-        // Запуск брутфорса
-        document.getElementById('startButton').addEventListener('click', function() {
-            if (isRunning) return;
-            if (dictionary.length === 0) {
-                alert('Сначала загрузите словарь!');
-                return;
-            }
-            
-            const ciphertext = document.getElementById('ciphertext').value
-                .toUpperCase()
-                .replace(/[^A-Z]/g, '');
-            
-            if (ciphertext.length === 0 || ciphertext.length % 2 !== 0) {
-                alert('Шифротекст должен содержать четное количество букв A-Z!');
-                return;
-            }
-            
-            isRunning = true;
-            checkedWords = 0;
-            lastUpdate = performance.now();
-            document.getElementById('startButton').disabled = true;
-            document.getElementById('stopButton').disabled = false;
-            document.getElementById('output').textContent = 'Начался брутфорс...\n';
-            
-            // Создаем Web Worker для брутфорса
-            const workerCode = `
-                ${buildMatrix.toString()}
-                ${decryptBigram.toString()}
-                ${decryptPlayfair.toString()}
-                ${isMeaningful.toString()}
+            worker.onmessage = function(e) {
+                checked += e.data.length;
+                found += e.data.length;
                 
-                onmessage = function(e) {
-                    const [ciphertext, words] = e.data;
-                    const results = [];
-                    
-                    for (const key of words) {
-                        const plaintext = decryptPlayfair(ciphertext, key);
-                        if (isMeaningful(plaintext)) {
-                            results.push({ key, plaintext });
-                        }
-                    }
-                    
-                    postMessage(results);
-                };
-            `;
+                for (const result of e.data) {
+                    document.getElementById('output').textContent += 
+                        `Found: ${result.key} => ${result.plaintext}\n`;
+                }
+            };
             
-            const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
-            const workerUrl = URL.createObjectURL(workerBlob);
-            
-            // Разделяем словарь на части для параллельной обработки
-            const workerCount = navigator.hardwareConcurrency || 4;
-            const chunkSize = Math.ceil(dictionary.length / workerCount);
-            
-            for (let i = 0; i < workerCount; i++) {
-                const start = i * chunkSize;
-                const end = start + chunkSize;
-                const worker = new Worker(workerUrl);
-                
-                worker.postMessage([ciphertext, dictionary.slice(start, end)]);
-                
-                worker.onmessage = function(e) {
-                    checkedWords += e.data.length;
-                    const now = performance.now();
-                    
-                    // Обновляем статистику каждые 500мс
-                    if (now - lastUpdate > 500) {
-                        speed = Math.round(checkedWords / ((now - lastUpdate) / 1000));
-                        document.getElementById('checkedCount').textContent = checkedWords;
-                        document.getElementById('speed').textContent = speed;
-                        lastUpdate = now;
-                    }
-                    
-                    // Выводим результаты
-                    for (const result of e.data) {
-                        const output = document.getElementById('output');
-                        output.textContent += \`Найден ключ: \${result.key}\\nТекст: \${result.plaintext}\\n\\n\`;
-                        output.scrollTop = output.scrollHeight;
-                    }
-                };
-                
-                workers.push(worker);
-            }
-        });
+            workers.push(worker);
+        }
+    }
+
+    // Остановка брутфорса
+    function stopBruteForce() {
+        if (!isRunning) return;
         
-        // Остановка брутфорса
-        document.getElementById('stopButton').addEventListener('click', function() {
-            if (!isRunning) return;
-            
-            isRunning = false;
-            workers.forEach(worker => worker.terminate());
-            workers = [];
-            
-            document.getElementById('startButton').disabled = false;
-            document.getElementById('stopButton').disabled = true;
-            document.getElementById('output').textContent += '\nБрутфорс остановлен.\n';
-        });
+        isRunning = false;
+        clearInterval(speedInterval);
+        workers.forEach(worker => worker.terminate());
+        workers = [];
+        document.getElementById('start').disabled = false;
+        document.getElementById('stop').disabled = true;
+        
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        document.getElementById('output').textContent += 
+            `\nStopped. Checked ${checked} words in ${elapsed} seconds.`;
+    }
+
+    // Инициализация
+    document.getElementById('start').addEventListener('click', startBruteForce);
+    document.getElementById('stop').addEventListener('click', stopBruteForce);
+    loadDictionary();
     </script>
 </body>
 </html>
