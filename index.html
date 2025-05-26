@@ -232,7 +232,7 @@
             <p>Advanced brute-force attack system for decrypting Playfair cipher messages without the key</p>
             
             <label for="ciphertext">Ciphertext:</label>
-            <textarea id="ciphertext" rows="5" placeholder="Enter ciphertext (letters only, no spaces or punctuation)...">QBKRUOXOGHULBSOLTFBBMFLRVQPPNKKSSTMTQSJOSSEKZZMATJKLUDIAMINF BNYPVTTMZFPKMGDKZXTJCD16KUNJAUEKCAR</textarea>
+            <textarea id="ciphertext" rows="5" placeholder="Enter ciphertext (letters only, no spaces or punctuation)...">OBKRUOXOGHULBSOLIFBBWFLRVQQPRNGKSSOTWTQSJQSSEKZZWATJKLUDIAWINFBNYPVTTMZFPKWGDKZXTJCDIGKUHUAUEKCAR</textarea>
             
             <div class="input-grid">
                 <div>
@@ -547,7 +547,7 @@
                             const fragments = known.split(',').map(f => f.trim()).filter(f => f.length > 0);
                             for (const fragment of fragments) {
                                 if (text.includes(fragment)) {
-                                    score += 0.5 + (fragment.length * 0.1);
+                                    score += 5 + (fragment.length * 2);
                                 }
                             }
                         }
@@ -623,7 +623,7 @@
             assignWork(workerId, ciphertext, knownText) {
                 if (!this.isRunning || workerId >= this.workers.length) return;
                 
-                const batchSize = 1500; // Optimal batch size for performance
+                const batchSize = 5000; // Optimal batch size for performance
                 const batch = this.keyGenerator.getNextBatch(batchSize);
                 
                 if (batch.length > 0) {
