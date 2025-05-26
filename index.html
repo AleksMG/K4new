@@ -3,22 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vigenère Cipher Breaker</title>
+    <title>Professional Playfair Cipher Breaker</title>
     <style>
         :root {
-            --primary-bg: #e6f2ff;
-            --secondary-bg: #ffffff;
+            --primary-bg: #f0f8ff;
+            --secondary-bg: #e6f2ff;
             --accent-green: #4CAF50;
             --accent-red: #f44336;
-            --text-dark: #333333;
-            --text-light: #666666;
-            --border-color: #cccccc;
+            --text-dark: #333;
+            --text-light: #555;
+            --border-color: #b3d4ff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
             background-color: var(--primary-bg);
             color: var(--text-dark);
             line-height: 1.6;
@@ -31,37 +35,37 @@
         }
 
         header {
-            background-color: var(--secondary-bg);
-            padding: 20px 0;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-        }
-
-        nav {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 30px;
         }
 
         .logo {
             font-size: 24px;
             font-weight: bold;
-            color: var(--accent-green);
+            color: var(--text-dark);
         }
 
-        .nav-links {
+        nav ul {
             display: flex;
-            gap: 20px;
+            list-style: none;
         }
 
-        .nav-links a {
+        nav ul li {
+            margin-left: 20px;
+        }
+
+        nav ul li a {
             text-decoration: none;
             color: var(--text-dark);
             font-weight: 500;
             transition: color 0.3s;
         }
 
-        .nav-links a:hover {
+        nav ul li a:hover {
             color: var(--accent-green);
         }
 
@@ -72,18 +76,19 @@
         }
 
         .panel {
-            background-color: var(--secondary-bg);
+            background-color: white;
             border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
         }
 
-        .panel-header {
+        .panel-title {
             font-size: 18px;
-            font-weight: bold;
             margin-bottom: 15px;
-            padding-bottom: 10px;
+            color: var(--text-dark);
             border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
         }
 
         textarea {
@@ -93,8 +98,8 @@
             border: 1px solid var(--border-color);
             border-radius: 4px;
             resize: vertical;
+            margin-bottom: 15px;
             font-family: monospace;
-            margin-bottom: 10px;
         }
 
         .form-group {
@@ -108,29 +113,22 @@
         }
 
         input[type="text"],
-        input[type="number"] {
+        input[type="number"],
+        select {
             width: 100%;
-            padding: 8px;
+            padding: 10px;
             border: 1px solid var(--border-color);
             border-radius: 4px;
-        }
-
-        .slider-container {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .slider {
-            flex-grow: 1;
+            margin-bottom: 10px;
         }
 
         .btn {
+            display: inline-block;
             padding: 10px 20px;
             border: none;
             border-radius: 4px;
-            font-weight: bold;
             cursor: pointer;
+            font-weight: 500;
             transition: background-color 0.3s;
         }
 
@@ -139,23 +137,18 @@
             color: white;
         }
 
-        .btn-primary:hover {
-            background-color: #45a049;
-        }
-
         .btn-danger {
             background-color: var(--accent-red);
             color: white;
         }
 
-        .btn-danger:hover {
-            background-color: #d32f2f;
+        .btn-secondary {
+            background-color: var(--secondary-bg);
+            color: var(--text-dark);
         }
 
-        .btn-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
+        .btn:hover {
+            opacity: 0.9;
         }
 
         .progress-container {
@@ -164,10 +157,10 @@
 
         .progress-bar {
             height: 20px;
-            background-color: #e0e0e0;
-            border-radius: 10px;
+            background-color: var(--secondary-bg);
+            border-radius: 4px;
+            margin-bottom: 10px;
             overflow: hidden;
-            margin-bottom: 5px;
         }
 
         .progress {
@@ -177,642 +170,895 @@
             transition: width 0.3s;
         }
 
-        .progress-info {
-            display: flex;
-            justify-content: space-between;
-            font-size: 14px;
-            color: var(--text-light);
-        }
-
-        .workers-info {
+        .stats {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .worker-card {
-            background-color: #f5f5f5;
-            padding: 10px;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-
-        .results {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
             margin-top: 20px;
-            max-height: 300px;
-            overflow-y: auto;
-            border: 1px solid var(--border-color);
+        }
+
+        .stat-card {
+            background-color: var(--secondary-bg);
+            padding: 15px;
             border-radius: 4px;
-            padding: 10px;
-            background-color: #f9f9f9;
+            text-align: center;
         }
 
-        .result-item {
-            padding: 8px;
-            border-bottom: 1px solid var(--border-color);
-            cursor: pointer;
-        }
-
-        .result-item:hover {
-            background-color: #f0f0f0;
-        }
-
-        .result-item.active {
-            background-color: #e3f2fd;
-            border-left: 3px solid var(--accent-green);
-        }
-
-        .result-key {
+        .stat-value {
+            font-size: 24px;
             font-weight: bold;
             color: var(--accent-green);
         }
 
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-light);
+            text-transform: uppercase;
+        }
+
+        .workers-control {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .workers-control input[type="range"] {
+            flex-grow: 1;
+            margin: 0 15px;
+        }
+
+        .workers-count {
+            width: 50px;
+            text-align: center;
+        }
+
+        .result-item {
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+            font-family: monospace;
+        }
+
+        .result-item:hover {
+            background-color: var(--secondary-bg);
+        }
+
         .result-score {
             float: right;
-            color: var(--text-light);
+            font-weight: bold;
+            color: var(--accent-green);
+        }
+
+        .tab-container {
+            margin-top: 20px;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab.active {
+            border-bottom: 2px solid var(--accent-green);
+            font-weight: 500;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 15px 0;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .worker-status {
+            margin-top: 20px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 15px;
+        }
+
+        .worker-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .worker-progress {
+            flex-grow: 1;
+            height: 8px;
+            background-color: var(--secondary-bg);
+            margin: 0 10px;
+            position: relative;
+        }
+
+        .worker-progress-bar {
+            height: 100%;
+            background-color: var(--accent-green);
+            width: 0%;
         }
 
         @media (max-width: 768px) {
             .main-content {
                 grid-template-columns: 1fr;
             }
+            
+            nav ul {
+                display: none;
+            }
         }
 
-        /* Animation for worker activity */
         @keyframes pulse {
             0% { opacity: 0.6; }
             50% { opacity: 1; }
             100% { opacity: 0.6; }
         }
 
-        .active-worker {
+        .processing {
             animation: pulse 1.5s infinite;
-            border-left: 3px solid var(--accent-green);
+            color: var(--accent-red);
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
-    <header>
-        <div class="container">
-            <nav>
-                <div class="logo">Vigenère Breaker</div>
-                <div class="nav-links">
-                    <a href="#analysis">Analysis</a>
-                    <a href="#decrypt">Decrypt</a>
-                    <a href="#customize">Customize</a>
-                    <a href="#results">Results</a>
-                </div>
-            </nav>
-        </div>
-    </header>
-
     <div class="container">
+        <header>
+            <div class="logo">Playfair Cipher Breaker</div>
+            <nav>
+                <ul>
+                    <li><a href="#decrypt">Decrypt</a></li>
+                    <li><a href="#analyze">Analyze</a></li>
+                    <li><a href="#results">Results</a></li>
+                    <li><a href="#settings">Settings</a></li>
+                </ul>
+            </nav>
+        </header>
+
         <div class="main-content">
-            <div class="panel">
-                <div class="panel-header">Input</div>
-                <div class="form-group">
-                    <label for="ciphertext">Ciphertext:</label>
-                    <textarea id="ciphertext" placeholder="Enter the encrypted text here..."></textarea>
+            <div class="left-column">
+                <div class="panel" id="decrypt">
+                    <h2 class="panel-title">Decryption Input</h2>
+                    <div class="form-group">
+                        <label for="ciphertext">Ciphertext:</label>
+                        <textarea id="ciphertext" placeholder="Enter ciphertext here..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="known-plaintext">Known Plaintext Fragments (optional):</label>
+                        <input type="text" id="known-plaintext" placeholder="e.g. 'hello', 'secret'">
+                    </div>
+                    <div class="form-group">
+                        <label for="key-length">Key Length:</label>
+                        <select id="key-length">
+                            <option value="2">2 characters</option>
+                            <option value="3">3 characters</option>
+                            <option value="4">4 characters</option>
+                            <option value="5" selected>5 characters</option>
+                            <option value="6">6 characters</option>
+                            <option value="7">7 characters</option>
+                            <option value="8">8 characters</option>
+                            <option value="9">9 characters</option>
+                            <option value="10">10 characters</option>
+                        </select>
+                    </div>
+                    <button id="start-decrypt" class="btn btn-primary">Start Decryption</button>
+                    <button id="stop-decrypt" class="btn btn-danger">Stop</button>
                 </div>
-                <div class="form-group">
-                    <label for="plaintext">Known Plaintext (optional):</label>
-                    <textarea id="plaintext" placeholder="Enter any known parts of the plaintext here..."></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="alphabet">Custom Alphabet:</label>
-                    <input type="text" id="alphabet" value="ABCDEFGHIJKLMNOPQRSTUVWXYZ" placeholder="Enter custom alphabet (default: A-Z)">
+
+                <div class="panel" id="settings">
+                    <h2 class="panel-title">Advanced Settings</h2>
+                    <div class="tab-container">
+                        <div class="tabs">
+                            <div class="tab active" data-tab="alphabet">Alphabet</div>
+                            <div class="tab" data-tab="workers">Workers</div>
+                            <div class="tab" data-tab="methods">Methods</div>
+                        </div>
+                        <div class="tab-content active" id="alphabet-tab">
+                            <div class="form-group">
+                                <label for="custom-alphabet">Custom Alphabet (leave blank for standard A-Z):</label>
+                                <input type="text" id="custom-alphabet" placeholder="ABCDEFGHIJKLMNOPQRSTUVWXYZ">
+                            </div>
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="exclude-j"> Exclude 'J' from alphabet (I=J)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="tab-content" id="workers-tab">
+                            <div class="workers-control">
+                                <span>Workers:</span>
+                                <input type="range" id="workers-slider" min="1" max="16" value="4">
+                                <span id="workers-count" class="workers-count">4</span>
+                            </div>
+                            <div class="workers-control">
+                                <span>Key Batch Size:</span>
+                                <input type="range" id="batch-slider" min="100" max="10000" step="100" value="1000">
+                                <span id="batch-count" class="workers-count">1000</span>
+                            </div>
+                        </div>
+                        <div class="tab-content" id="methods-tab">
+                            <div class="form-group">
+                                <label>Decryption Methods:</label>
+                                <label><input type="checkbox" name="method" value="bruteforce" checked> Bruteforce</label>
+                                <label><input type="checkbox" name="method" value="dictionary" checked> Dictionary Attack</label>
+                                <label><input type="checkbox" name="method" value="pattern" checked> Pattern Analysis</label>
+                                <label><input type="checkbox" name="method" value="genetic" checked> Genetic Algorithm</label>
+                            </div>
+                            <div class="form-group">
+                                <label for="mutation-rate">Mutation Rate (for genetic algorithm):</label>
+                                <input type="range" id="mutation-rate" min="1" max="50" value="10">
+                                <span id="mutation-value">10%</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="panel">
-                <div class="panel-header">Attack Configuration</div>
-                <div class="form-group">
-                    <label for="keyLength">Key Length (or range):</label>
-                    <div class="slider-container">
-                        <input type="range" id="keyLength" min="1" max="30" value="10" class="slider">
-                        <span id="keyLengthValue">10</span>
+            <div class="right-column">
+                <div class="panel" id="analyze">
+                    <h2 class="panel-title">Analysis Progress</h2>
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress" id="decrypt-progress"></div>
+                        </div>
+                        <div id="progress-text">Ready to start decryption</div>
+                    </div>
+                    <div class="stats">
+                        <div class="stat-card">
+                            <div class="stat-value" id="keys-tried">0</div>
+                            <div class="stat-label">Keys Tried</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="keys-per-sec">0</div>
+                            <div class="stat-label">Keys/Sec</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="time-remaining">-</div>
+                            <div class="stat-label">Time Remaining</div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="current-key">Current Best Key:</label>
+                        <input type="text" id="current-key" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="current-plaintext">Current Best Plaintext:</label>
+                        <textarea id="current-plaintext" readonly></textarea>
+                    </div>
+                    <div class="worker-status" id="worker-status-container">
+                        <h3>Worker Status</h3>
+                        <div id="worker-list"></div>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="workers">Number of Workers:</label>
-                    <div class="slider-container">
-                        <input type="range" id="workers" min="1" max="16" value="4" class="slider">
-                        <span id="workersValue">4</span>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="batchSize">Key Batch Size (per worker):</label>
-                    <div class="slider-container">
-                        <input type="range" id="batchSize" min="100" max="100000" step="100" value="10000" class="slider">
-                        <span id="batchSizeValue">10,000</span>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="usePatterns" checked>
-                        Use intelligent pattern analysis
-                    </label>
-                    <label>
-                        <input type="checkbox" id="useMutations" checked>
-                        Use key mutations
-                    </label>
-                    <label>
-                        <input type="checkbox" id="useRandom" checked>
-                        Use random sampling
-                    </label>
-                </div>
-                <div class="btn-group">
-                    <button id="startBtn" class="btn btn-primary">Start Attack</button>
-                    <button id="stopBtn" class="btn btn-danger">Stop</button>
-                </div>
-            </div>
-        </div>
 
-        <div class="panel progress-container">
-            <div class="panel-header">Attack Progress</div>
-            <div class="progress-bar">
-                <div class="progress" id="progressBar"></div>
-            </div>
-            <div class="progress-info">
-                <span id="keysTested">0 keys tested</span>
-                <span id="keysPerSec">0 keys/sec</span>
-                <span id="timeRemaining">Estimating time...</span>
-            </div>
-            <div class="workers-info" id="workersInfo">
-                <!-- Worker cards will be inserted here -->
-            </div>
-        </div>
-
-        <div class="panel">
-            <div class="panel-header">Results</div>
-            <div class="results" id="resultsContainer">
-                <!-- Results will be inserted here -->
-                <div class="result-item">
-                    <span class="result-key">No results yet</span>
-                    <span class="result-score">Run the attack to see potential keys</span>
+                <div class="panel" id="results">
+                    <h2 class="panel-title">Top Results</h2>
+                    <div id="results-container">
+                        <!-- Results will be added here dynamically -->
+                    </div>
+                    <button id="export-results" class="btn btn-secondary">Export Results</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Global variables
-        let workers = [];
-        let isRunning = false;
-        let totalKeysTested = 0;
-        let lastUpdateTime = 0;
-        let keysPerSecond = 0;
-        let bestResults = [];
-        let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        let ciphertext = "";
-        let knownPlaintext = "";
-        let keyLength = 10;
-        let workerCount = 4;
-        let batchSize = 10000;
-        let usePatterns = true;
-        let useMutations = true;
-        let useRandom = true;
-        let totalPossibleKeys = 0;
-        let startTime = 0;
-
-        // DOM elements
-        const startBtn = document.getElementById('startBtn');
-        const stopBtn = document.getElementById('stopBtn');
-        const ciphertextEl = document.getElementById('ciphertext');
-        const plaintextEl = document.getElementById('plaintext');
-        const alphabetEl = document.getElementById('alphabet');
-        const keyLengthEl = document.getElementById('keyLength');
-        const keyLengthValueEl = document.getElementById('keyLengthValue');
-        const workersEl = document.getElementById('workers');
-        const workersValueEl = document.getElementById('workersValue');
-        const batchSizeEl = document.getElementById('batchSize');
-        const batchSizeValueEl = document.getElementById('batchSizeValue');
-        const usePatternsEl = document.getElementById('usePatterns');
-        const useMutationsEl = document.getElementById('useMutations');
-        const useRandomEl = document.getElementById('useRandom');
-        const progressBarEl = document.getElementById('progressBar');
-        const keysTestedEl = document.getElementById('keysTested');
-        const keysPerSecEl = document.getElementById('keysPerSec');
-        const timeRemainingEl = document.getElementById('timeRemaining');
-        const workersInfoEl = document.getElementById('workersInfo');
-        const resultsContainerEl = document.getElementById('resultsContainer');
-
-        // Event listeners
-        startBtn.addEventListener('click', startAttack);
-        stopBtn.addEventListener('click', stopAttack);
-        keyLengthEl.addEventListener('input', updateKeyLength);
-        workersEl.addEventListener('input', updateWorkers);
-        batchSizeEl.addEventListener('input', updateBatchSize);
-
-        // Initialize UI
-        function initUI() {
-            updateKeyLength();
-            updateWorkers();
-            updateBatchSize();
-        }
-
-        // Update key length display
-        function updateKeyLength() {
-            keyLength = parseInt(keyLengthEl.value);
-            keyLengthValueEl.textContent = keyLength;
-        }
-
-        // Update workers display
-        function updateWorkers() {
-            workerCount = parseInt(workersEl.value);
-            workersValueEl.textContent = workerCount;
-        }
-
-        // Update batch size display
-        function updateBatchSize() {
-            batchSize = parseInt(batchSizeEl.value);
-            batchSizeValueEl.textContent = batchSize.toLocaleString();
-        }
-
-        // Start the attack
-        function startAttack() {
-            if (isRunning) return;
-            
-            // Get input values
-            ciphertext = ciphertextEl.value.trim().toUpperCase();
-            knownPlaintext = plaintextEl.value.trim().toUpperCase();
-            alphabet = alphabetEl.value.trim().toUpperCase() || "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-            keyLength = parseInt(keyLengthEl.value);
-            workerCount = parseInt(workersEl.value);
-            batchSize = parseInt(batchSizeEl.value);
-            usePatterns = usePatternsEl.checked;
-            useMutations = useMutationsEl.checked;
-            useRandom = useRandomEl.checked;
-            
-            if (!ciphertext) {
-                alert("Please enter ciphertext to decrypt");
-                return;
+        // Playfair Cipher Implementation
+        class PlayfairCipher {
+            constructor(key, alphabet = 'ABCDEFGHIKLMNOPQRSTUVWXYZ') {
+                this.alphabet = alphabet;
+                this.key = this.prepareKey(key);
+                this.matrix = this.createMatrix();
             }
-            
-            if (alphabet.length < 2) {
-                alert("Alphabet must contain at least 2 characters");
-                return;
-            }
-            
-            // Reset state
-            totalKeysTested = 0;
-            keysPerSecond = 0;
-            bestResults = [];
-            lastUpdateTime = performance.now();
-            startTime = performance.now();
-            isRunning = true;
-            
-            // Calculate total possible keys (approximation)
-            totalPossibleKeys = Math.pow(alphabet.length, keyLength);
-            
-            // Update UI
-            startBtn.disabled = true;
-            stopBtn.disabled = false;
-            progressBarEl.style.width = '0%';
-            keysTestedEl.textContent = '0 keys tested';
-            keysPerSecEl.textContent = '0 keys/sec';
-            timeRemainingEl.textContent = 'Estimating time...';
-            resultsContainerEl.innerHTML = '<div class="result-item"><span class="result-key">Attack in progress...</span><span class="result-score">Please wait</span></div>';
-            
-            // Create worker info cards
-            workersInfoEl.innerHTML = '';
-            for (let i = 0; i < workerCount; i++) {
-                const workerCard = document.createElement('div');
-                workerCard.className = 'worker-card';
-                workerCard.id = `worker-${i}`;
-                workerCard.innerHTML = `
-                    <strong>Worker ${i+1}</strong><br>
-                    Status: <span class="status">Idle</span><br>
-                    Keys tested: <span class="keys">0</span><br>
-                    Current key: <span class="current-key">-</span>
-                `;
-                workersInfoEl.appendChild(workerCard);
-            }
-            
-            // Create web workers
-            workers = [];
-            for (let i = 0; i < workerCount; i++) {
-                const worker = new Worker(URL.createObjectURL(new Blob([`
-                    // Worker code for Vigenère cracking
-                    const vigenereDecrypt = (ciphertext, key, alphabet) => {
-                        let plaintext = '';
-                        const alphaLen = alphabet.length;
-                        
-                        for (let i = 0; i < ciphertext.length; i++) {
-                            const cipherChar = ciphertext[i];
-                            const keyChar = key[i % key.length];
-                            
-                            const cipherIndex = alphabet.indexOf(cipherChar);
-                            const keyIndex = alphabet.indexOf(keyChar);
-                            
-                            if (cipherIndex === -1) {
-                                plaintext += cipherChar;
-                            } else {
-                                const plainIndex = (cipherIndex - keyIndex + alphaLen) % alphaLen;
-                                plaintext += alphabet[plainIndex];
-                            }
-                        }
-                        
-                        return plaintext;
-                    };
-                    
-                    const scoreText = (text, knownPlaintext) => {
-                        if (!text) return 0;
-                        
-                        // Simple scoring - higher is better
-                        let score = 0;
-                        
-                        // Check against known plaintext if available
-                        if (knownPlaintext && knownPlaintext.length > 0) {
-                            const matchLength = Math.min(knownPlaintext.length, text.length);
-                            let matches = 0;
-                            
-                            for (let i = 0; i < matchLength; i++) {
-                                if (text[i] === knownPlaintext[i]) {
-                                    matches++;
-                                }
-                            }
-                            
-                            score += (matches / matchLength) * 100;
-                        }
-                        
-                        // Score based on character frequency (English)
-                        const freq = {
-                            'E': 12.7, 'T': 9.1, 'A': 8.2, 'O': 7.5, 'I': 7.0, 'N': 6.7,
-                            'S': 6.3, 'H': 6.1, 'R': 6.0, 'D': 4.3, 'L': 4.0, 'C': 2.8,
-                            'U': 2.8, 'M': 2.4, 'W': 2.4, 'F': 2.2, 'G': 2.0, 'Y': 2.0,
-                            'P': 1.9, 'B': 1.5, 'V': 1.0, 'K': 0.8, 'J': 0.2, 'X': 0.2,
-                            'Q': 0.1, 'Z': 0.1
-                        };
-                        
-                        let freqScore = 0;
-                        const upperText = text.toUpperCase();
-                        
-                        for (let i = 0; i < upperText.length; i++) {
-                            const char = upperText[i];
-                            if (freq[char] !== undefined) {
-                                freqScore += freq[char];
-                            }
-                        }
-                        
-                        score += freqScore / text.length;
-                        
-                        return score;
-                    };
-                    
-                    const generateRandomKey = (length, alphabet) => {
-                        let key = '';
-                        for (let i = 0; i < length; i++) {
-                            key += alphabet[Math.floor(Math.random() * alphabet.length)];
-                        }
-                        return key;
-                    };
-                    
-                    const mutateKey = (key, alphabet) => {
-                        const mutationPoint = Math.floor(Math.random() * key.length);
-                        const newChar = alphabet[Math.floor(Math.random() * alphabet.length)];
-                        return key.substring(0, mutationPoint) + newChar + key.substring(mutationPoint + 1);
-                    };
-                    
-                    onmessage = function(e) {
-                        const { 
-                            ciphertext, 
-                            alphabet, 
-                            keyLength, 
-                            batchSize, 
-                            knownPlaintext,
-                            usePatterns,
-                            useMutations,
-                            useRandom
-                        } = e.data;
-                        
-                        const results = [];
-                        let keysTested = 0;
-                        
-                        // Generate and test keys
-                        for (let i = 0; i < batchSize; i++) {
-                            let key;
-                            
-                            // Different key generation strategies
-                            if (useRandom && Math.random() < 0.3) {
-                                key = generateRandomKey(keyLength, alphabet);
-                            } else if (useMutations && results.length > 0 && Math.random() < 0.5) {
-                                const bestKey = results[0].key;
-                                key = mutateKey(bestKey, alphabet);
-                            } else {
-                                // Simple incremental approach
-                                key = '';
-                                let num = i;
-                                for (let j = 0; j < keyLength; j++) {
-                                    const index = num % alphabet.length;
-                                    key += alphabet[index];
-                                    num = Math.floor(num / alphabet.length);
-                                }
-                            }
-                            
-                            const plaintext = vigenereDecrypt(ciphertext, key, alphabet);
-                            const score = scoreText(plaintext, knownPlaintext);
-                            
-                            results.push({ key, score, plaintext });
-                            keysTested++;
-                            
-                            // Sort results by score (descending)
-                            results.sort((a, b) => b.score - a.score);
-                            
-                            // Keep only top 10 results
-                            if (results.length > 10) {
-                                results.pop();
-                            }
-                            
-                            // Send periodic updates
-                            if (i % 100 === 0) {
-                                postMessage({
-                                    type: 'progress',
-                                    keysTested,
-                                    currentKey: key
-                                });
-                            }
-                        }
-                        
-                        // Send final results
-                        postMessage({
-                            type: 'results',
-                            results,
-                            keysTested
-                        });
-                    };
-                `], { type: 'text/javascript' })));
+
+            prepareKey(key) {
+                // Remove duplicate letters and non-alphabet characters
+                let cleanedKey = '';
+                const seen = new Set();
                 
-                worker.onmessage = function(e) {
-                    handleWorkerMessage(i, e.data);
+                for (const char of key.toUpperCase()) {
+                    if (this.alphabet.includes(char) && !seen.has(char)) {
+                        cleanedKey += char;
+                        seen.add(char);
+                    }
+                }
+                
+                return cleanedKey;
+            }
+
+            createMatrix() {
+                // Create 5x5 matrix from key + remaining alphabet
+                const matrix = [];
+                const usedChars = new Set();
+                
+                // Add key characters
+                for (const char of this.key) {
+                    if (!usedChars.has(char)) {
+                        matrix.push(char);
+                        usedChars.add(char);
+                    }
+                }
+                
+                // Add remaining alphabet characters
+                for (const char of this.alphabet) {
+                    if (!usedChars.has(char)) {
+                        matrix.push(char);
+                        usedChars.add(char);
+                    }
+                }
+                
+                return matrix;
+            }
+
+            decrypt(ciphertext) {
+                // Prepare ciphertext (remove non-alphabet chars, handle I/J)
+                const prepared = this.prepareText(ciphertext);
+                let plaintext = '';
+                
+                for (let i = 0; i < prepared.length; i += 2) {
+                    const pair = prepared.substr(i, 2);
+                    if (pair.length === 1) {
+                        plaintext += this.decryptSingle(pair);
+                    } else {
+                        plaintext += this.decryptPair(pair);
+                    }
+                }
+                
+                return plaintext;
+            }
+
+            prepareText(text) {
+                // Convert to uppercase and replace J with I if needed
+                let result = text.toUpperCase().replace(/[^A-Z]/g, '');
+                if (!this.alphabet.includes('J')) {
+                    result = result.replace(/J/g, 'I');
+                }
+                return result;
+            }
+
+            decryptPair(pair) {
+                const [a, b] = pair.split('');
+                const posA = this.matrix.indexOf(a);
+                const posB = this.matrix.indexOf(b);
+                const rowA = Math.floor(posA / 5);
+                const colA = posA % 5;
+                const rowB = Math.floor(posB / 5);
+                const colB = posB % 5;
+                
+                // Same row
+                if (rowA === rowB) {
+                    return this.matrix[rowA * 5 + ((colA + 4) % 5)] + 
+                           this.matrix[rowB * 5 + ((colB + 4) % 5)];
+                }
+                // Same column
+                else if (colA === colB) {
+                    return this.matrix[((rowA + 4) % 5) * 5 + colA] + 
+                           this.matrix[((rowB + 4) % 5) * 5 + colB];
+                }
+                // Rectangle
+                else {
+                    return this.matrix[rowA * 5 + colB] + 
+                           this.matrix[rowB * 5 + colA];
+                }
+            }
+
+            decryptSingle(char) {
+                // Handle odd-length ciphertext (shouldn't happen with proper ciphertext)
+                return char;
+            }
+        }
+
+        // Text Analyzer for scoring plaintext
+        class TextAnalyzer {
+            constructor() {
+                this.englishFrequencies = {
+                    'A': 0.08167, 'B': 0.01492, 'C': 0.02782, 'D': 0.04253,
+                    'E': 0.12702, 'F': 0.02228, 'G': 0.02015, 'H': 0.06094,
+                    'I': 0.06966, 'J': 0.00153, 'K': 0.00772, 'L': 0.04025,
+                    'M': 0.02406, 'N': 0.06749, 'O': 0.07507, 'P': 0.01929,
+                    'Q': 0.00095, 'R': 0.05987, 'S': 0.06327, 'T': 0.09056,
+                    'U': 0.02758, 'V': 0.00978, 'W': 0.02360, 'X': 0.00150,
+                    'Y': 0.01974, 'Z': 0.00074
                 };
                 
-                workers.push(worker);
-            }
-            
-            // Start workers
-            for (let i = 0; i < workerCount; i++) {
-                workers[i].postMessage({
-                    ciphertext,
-                    alphabet,
-                    keyLength,
-                    batchSize,
-                    knownPlaintext,
-                    usePatterns,
-                    useMutations,
-                    useRandom
-                });
+                this.commonWords = new Set([
+                    'THE', 'AND', 'THAT', 'HAVE', 'FOR', 'NOT', 'WITH', 'YOU',
+                    'THIS', 'BUT', 'HIS', 'FROM', 'THEY', 'WILL', 'WOULD',
+                    'THERE', 'THEIR', 'WHAT', 'ABOUT', 'WHICH', 'WHEN', 'WERE'
+                ]);
                 
-                // Update worker UI to show it's working
-                const workerCard = document.getElementById(`worker-${i}`);
-                workerCard.classList.add('active-worker');
-                workerCard.querySelector('.status').textContent = 'Working';
+                this.commonBigrams = new Set([
+                    'TH', 'HE', 'IN', 'ER', 'AN', 'RE', 'ND', 'AT', 'ON', 'NT',
+                    'HA', 'ES', 'ST', 'EN', 'ED', 'TO', 'IT', 'OU', 'EA', 'HI'
+                ]);
             }
-            
-            // Start progress update loop
-            requestAnimationFrame(updateProgress);
+
+            scoreText(text) {
+                // Calculate multiple scores and combine them
+                const freqScore = this.frequencyScore(text);
+                const wordScore = this.wordMatchScore(text);
+                const bigramScore = this.bigramScore(text);
+                
+                // Weighted combination of scores
+                return (freqScore * 0.5) + (wordScore * 0.3) + (bigramScore * 0.2);
+            }
+
+            frequencyScore(text) {
+                // Compare letter frequencies to English
+                const counts = {};
+                let total = 0;
+                
+                // Count letters
+                for (const char of text.toUpperCase()) {
+                    if (/[A-Z]/.test(char)) {
+                        counts[char] = (counts[char] || 0) + 1;
+                        total++;
+                    }
+                }
+                
+                // Calculate chi-squared statistic
+                let score = 0;
+                for (const char in this.englishFrequencies) {
+                    const expected = this.englishFrequencies[char] * total;
+                    const observed = counts[char] || 0;
+                    const diff = observed - expected;
+                    score += (diff * diff) / expected;
+                }
+                
+                // Convert to a 0-1 score (lower chi-squared is better)
+                return Math.max(0, 1 - (score / 1000));
+            }
+
+            wordMatchScore(text) {
+                // Check for common words
+                const words = text.toUpperCase().split(/[^A-Z]+/).filter(w => w.length > 2);
+                if (words.length === 0) return 0;
+                
+                let matches = 0;
+                for (const word of words) {
+                    if (this.commonWords.has(word)) {
+                        matches++;
+                    }
+                }
+                
+                return matches / words.length;
+            }
+
+            bigramScore(text) {
+                // Check for common bigrams
+                const cleaned = text.toUpperCase().replace(/[^A-Z]/g, '');
+                if (cleaned.length < 2) return 0;
+                
+                let matches = 0;
+                for (let i = 0; i < cleaned.length - 1; i++) {
+                    const bigram = cleaned.substr(i, 2);
+                    if (this.commonBigrams.has(bigram)) {
+                        matches++;
+                    }
+                }
+                
+                return matches / (cleaned.length - 1);
+            }
         }
 
-        // Handle messages from workers
-        function handleWorkerMessage(workerId, data) {
-            const workerCard = document.getElementById(`worker-${workerId}`);
-            
-            if (data.type === 'progress') {
-                // Update worker progress
-                totalKeysTested += data.keysTested;
-                workerCard.querySelector('.keys').textContent = data.keysTested.toLocaleString();
-                workerCard.querySelector('.current-key').textContent = data.currentKey || '-';
-            } else if (data.type === 'results') {
-                // Process results from worker
-                totalKeysTested += data.keysTested;
+        // Key Generator with smart distribution
+        class KeyGenerator {
+            constructor(alphabet, keyLength) {
+                this.alphabet = alphabet;
+                this.keyLength = keyLength;
+                this.totalPossible = Math.pow(alphabet.length, keyLength);
+                this.generated = new Set();
+                this.currentIndex = 0;
+            }
+
+            getNextBatch(size) {
+                const batch = [];
+                while (batch.length < size && this.currentIndex < this.totalPossible) {
+                    const key = this.indexToKey(this.currentIndex);
+                    if (!this.generated.has(key)) {
+                        batch.push(key);
+                        this.generated.add(key);
+                    }
+                    this.currentIndex++;
+                }
+                return batch;
+            }
+
+            indexToKey(index) {
+                let key = '';
+                let remaining = index;
                 
-                // Merge with existing results
-                bestResults = bestResults.concat(data.results);
+                for (let i = 0; i < this.keyLength; i++) {
+                    const pos = remaining % this.alphabet.length;
+                    key = this.alphabet.charAt(pos) + key;
+                    remaining = Math.floor(remaining / this.alphabet.length);
+                }
                 
-                // Sort all results by score
-                bestResults.sort((a, b) => b.score - a.score);
+                return key;
+            }
+
+            getProgress() {
+                return this.currentIndex / this.totalPossible;
+            }
+        }
+
+        // Main Application Controller
+        class PlayfairBreakerApp {
+            constructor() {
+                this.workers = [];
+                this.workerStatus = {};
+                this.totalKeysTested = 0;
+                this.startTime = null;
+                this.currentTopResults = [];
+                this.isRunning = false;
+                this.textAnalyzer = new TextAnalyzer();
+                this.keyGenerator = null;
+                this.updateInterval = null;
+                this.bestScore = 0;
                 
-                // Keep only top 20 results
-                if (bestResults.length > 20) {
-                    bestResults = bestResults.slice(0, 20);
+                this.initUI();
+                this.setupEventListeners();
+            }
+
+            initUI() {
+                // Initialize sliders
+                document.getElementById('workers-slider').addEventListener('input', (e) => {
+                    document.getElementById('workers-count').textContent = e.target.value;
+                });
+                
+                document.getElementById('batch-slider').addEventListener('input', (e) => {
+                    document.getElementById('batch-count').textContent = e.target.value;
+                });
+                
+                document.getElementById('mutation-rate').addEventListener('input', (e) => {
+                    document.getElementById('mutation-value').textContent = e.target.value + '%';
+                });
+                
+                // Initialize tabs
+                document.querySelectorAll('.tab').forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                        
+                        tab.classList.add('active');
+                        const tabId = tab.getAttribute('data-tab') + '-tab';
+                        document.getElementById(tabId).classList.add('active');
+                    });
+                });
+            }
+
+            setupEventListeners() {
+                document.getElementById('start-decrypt').addEventListener('click', () => this.startDecryption());
+                document.getElementById('stop-decrypt').addEventListener('click', () => this.stopDecryption());
+                document.getElementById('export-results').addEventListener('click', () => this.exportResults());
+            }
+
+            startDecryption() {
+                const ciphertext = document.getElementById('ciphertext').value.trim();
+                if (!ciphertext) {
+                    alert('Please enter ciphertext to decrypt');
+                    return;
+                }
+
+                // Stop any running decryption
+                this.stopDecryption();
+
+                // Initialize settings
+                const excludeJ = document.getElementById('exclude-j').checked;
+                let alphabet = excludeJ ? 
+                    'ABCDEFGHIKLMNOPQRSTUVWXYZ' : 
+                    'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                
+                const customAlphabet = document.getElementById('custom-alphabet').value;
+                if (customAlphabet && customAlphabet.length >= 25) {
+                    alphabet = customAlphabet.toUpperCase().replace(/[^A-Z]/g, '');
+                }
+
+                const keyLength = parseInt(document.getElementById('key-length').value);
+                const workerCount = parseInt(document.getElementById('workers-slider').value);
+                const batchSize = parseInt(document.getElementById('batch-slider').value);
+                const knownPlaintext = document.getElementById('known-plaintext').value;
+
+                // Initialize key generator
+                this.keyGenerator = new KeyGenerator(alphabet, keyLength);
+                this.totalKeysTested = 0;
+                this.currentTopResults = [];
+                this.bestScore = 0;
+                this.startTime = Date.now();
+                this.isRunning = true;
+
+                // Clear previous results
+                document.getElementById('results-container').innerHTML = '';
+                document.getElementById('current-key').value = '';
+                document.getElementById('current-plaintext').value = '';
+                document.getElementById('keys-tried').textContent = '0';
+                document.getElementById('keys-per-sec').textContent = '0';
+                document.getElementById('time-remaining').textContent = '-';
+                document.getElementById('progress-text').textContent = 'Starting workers...';
+                document.getElementById('progress-text').classList.add('processing');
+                document.getElementById('decrypt-progress').style.width = '0%';
+
+                // Create workers
+                this.createWorkers(workerCount, ciphertext, alphabet, knownPlaintext, batchSize);
+
+                // Start UI updates
+                this.updateInterval = setInterval(() => this.updateUI(), 200);
+            }
+
+            createWorkers(count, ciphertext, alphabet, knownPlaintext, batchSize) {
+                // Clear existing workers
+                this.workers.forEach(worker => worker.terminate());
+                this.workers = [];
+                this.workerStatus = {};
+                
+                // Create worker list in UI
+                const workerList = document.getElementById('worker-list');
+                workerList.innerHTML = '';
+                
+                for (let i = 0; i < count; i++) {
+                    // Create worker
+                    const worker = new Worker(URL.createObjectURL(new Blob([`
+                        const analyzer = ${this.textAnalyzer.scoreText.toString()};
+                        
+                        onmessage = function(e) {
+                            const { ciphertext, keys, alphabet, knownPlaintext } = e.data;
+                            const results = [];
+                            
+                            for (const key of keys) {
+                                try {
+                                    const playfair = new PlayfairCipher(key, alphabet);
+                                    const plaintext = playfair.decrypt(ciphertext);
+                                    const score = analyzer(plaintext);
+                                    
+                                    // Check for known plaintext
+                                    let knownScore = 0;
+                                    if (knownPlaintext) {
+                                        const knownRegex = new RegExp(knownPlaintext, 'i');
+                                        if (knownRegex.test(plaintext)) {
+                                            knownScore = 0.5; // Boost score if known text found
+                                        }
+                                    }
+                                    
+                                    results.push({
+                                        key,
+                                        plaintext,
+                                        score: Math.min(1, score + knownScore)
+                                    });
+                                } catch (error) {
+                                    console.error('Decryption error:', error);
+                                }
+                            }
+                            
+                            postMessage({
+                                workerId: ${i},
+                                results,
+                                keysTested: keys.length
+                            });
+                        };
+                        
+                        ${PlayfairCipher.toString()}
+                    `], { type: 'text/javascript' })));
+
+                    worker.onmessage = (e) => this.handleWorkerMessage(e, i);
+                    this.workers.push(worker);
+                    
+                    // Initialize status
+                    this.workerStatus[i] = {
+                        keysTested: 0,
+                        lastUpdate: Date.now(),
+                        active: false
+                    };
+                    
+                    // Add to UI
+                    const workerItem = document.createElement('div');
+                    workerItem.className = 'worker-item';
+                    workerItem.innerHTML = `
+                        <span>Worker ${i + 1}</span>
+                        <div class="worker-progress">
+                            <div class="worker-progress-bar" id="worker-${i}-progress"></div>
+                        </div>
+                        <span id="worker-${i}-speed">0 keys/s</span>
+                    `;
+                    workerList.appendChild(workerItem);
+                    
+                    // Start worker with first batch
+                    this.assignWorkToWorker(i, ciphertext, alphabet, knownPlaintext, batchSize);
+                }
+            }
+
+            assignWorkToWorker(workerId, ciphertext, alphabet, knownPlaintext, batchSize) {
+                if (!this.isRunning) return;
+                
+                const batch = this.keyGenerator.getNextBatch(batchSize);
+                if (batch.length === 0) {
+                    // No more keys to process
+                    this.workerStatus[workerId].active = false;
+                    this.checkCompletion();
+                    return;
+                }
+                
+                this.workerStatus[workerId].active = true;
+                this.workerStatus[workerId].lastBatchTime = Date.now();
+                
+                this.workers[workerId].postMessage({
+                    ciphertext,
+                    keys: batch,
+                    alphabet,
+                    knownPlaintext
+                });
+            }
+
+            handleWorkerMessage(e, workerId) {
+                if (!this.isRunning) return;
+                
+                const { results, keysTested } = e.data;
+                const now = Date.now();
+                
+                // Update worker status
+                this.workerStatus[workerId].keysTested += keysTested;
+                this.totalKeysTested += keysTested;
+                
+                // Calculate keys per second for this worker
+                const timeElapsed = (now - this.workerStatus[workerId].lastBatchTime) / 1000;
+                const keysPerSec = Math.round(keysTested / timeElapsed);
+                this.workerStatus[workerId].lastSpeed = keysPerSec;
+                this.workerStatus[workerId].lastUpdate = now;
+                
+                // Update worker progress in UI
+                const progressPercent = (this.keyGenerator.getProgress() * 100).toFixed(1);
+                document.getElementById(`worker-${workerId}-progress`).style.width = `${progressPercent}%`;
+                document.getElementById(`worker-${workerId}-speed`).textContent = `${keysPerSec.toLocaleString()} keys/s`;
+                
+                // Process results
+                this.processResults(results);
+                
+                // Assign more work
+                const ciphertext = document.getElementById('ciphertext').value.trim();
+                const alphabet = document.getElementById('exclude-j').checked ? 
+                    'ABCDEFGHIKLMNOPQRSTUVWXYZ' : 
+                    'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                const knownPlaintext = document.getElementById('known-plaintext').value;
+                const batchSize = parseInt(document.getElementById('batch-slider').value);
+                
+                this.assignWorkToWorker(workerId, ciphertext, alphabet, knownPlaintext, batchSize);
+            }
+
+            processResults(results) {
+                for (const result of results) {
+                    // Add to top results if score is high enough
+                    if (result.score > 0.7 || this.currentTopResults.length < 10) {
+                        this.currentTopResults.push(result);
+                        
+                        // Sort by score descending
+                        this.currentTopResults.sort((a, b) => b.score - a.score);
+                        
+                        // Keep only top 20 results
+                        if (this.currentTopResults.length > 20) {
+                            this.currentTopResults.pop();
+                        }
+                        
+                        // Update best result
+                        if (result.score > this.bestScore) {
+                            this.bestScore = result.score;
+                            document.getElementById('current-key').value = result.key;
+                            document.getElementById('current-plaintext').value = result.plaintext;
+                        }
+                    }
                 }
                 
                 // Update results display
-                updateResultsDisplay();
+                this.updateResultsUI();
+            }
+
+            updateResultsUI() {
+                const container = document.getElementById('results-container');
+                container.innerHTML = '';
                 
-                // Check if we should start another batch
-                if (isRunning) {
-                    workers[workerId].postMessage({
-                        ciphertext,
-                        alphabet,
-                        keyLength,
-                        batchSize,
-                        knownPlaintext,
-                        usePatterns,
-                        useMutations,
-                        useRandom
-                    });
+                for (const result of this.currentTopResults) {
+                    const item = document.createElement('div');
+                    item.className = 'result-item';
+                    item.innerHTML = `
+                        <span class="result-score">${result.score.toFixed(4)}</span>
+                        <span><strong>${result.key}</strong> - ${result.plaintext.substring(0, 50)}${result.plaintext.length > 50 ? '...' : ''}</span>
+                    `;
+                    container.appendChild(item);
+                }
+            }
+
+            updateUI() {
+                if (!this.isRunning) return;
+                
+                // Update progress
+                const progress = this.keyGenerator.getProgress();
+                document.getElementById('decrypt-progress').style.width = `${(progress * 100).toFixed(2)}%`;
+                
+                // Update stats
+                document.getElementById('keys-tried').textContent = this.totalKeysTested.toLocaleString();
+                
+                // Calculate total keys per second
+                const now = Date.now();
+                const timeElapsed = (now - this.startTime) / 1000;
+                const totalKeysPerSec = Math.round(this.totalKeysTested / timeElapsed);
+                document.getElementById('keys-per-sec').textContent = totalKeysPerSec.toLocaleString();
+                
+                // Calculate time remaining
+                if (totalKeysPerSec > 0) {
+                    const remainingKeys = this.keyGenerator.totalPossible - this.keyGenerator.currentIndex;
+                    const remainingSeconds = Math.round(remainingKeys / totalKeysPerSec);
+                    document.getElementById('time-remaining').textContent = this.formatTime(remainingSeconds);
+                }
+                
+                // Check if all workers are idle (work complete)
+                const activeWorkers = Object.values(this.workerStatus).filter(w => w.active).length;
+                if (activeWorkers === 0) {
+                    this.checkCompletion();
+                }
+            }
+
+            checkCompletion() {
+                // Check if all work is done
+                if (this.keyGenerator.currentIndex >= this.keyGenerator.totalPossible) {
+                    this.stopDecryption();
+                    document.getElementById('progress-text').textContent = 'Decryption complete!';
+                    document.getElementById('progress-text').classList.remove('processing');
+                }
+            }
+
+            stopDecryption() {
+                this.isRunning = false;
+                clearInterval(this.updateInterval);
+                
+                // Terminate all workers
+                this.workers.forEach(worker => worker.terminate());
+                this.workers = [];
+                
+                document.getElementById('progress-text').classList.remove('processing');
+                if (this.keyGenerator && this.keyGenerator.currentIndex >= this.keyGenerator.totalPossible) {
+                    document.getElementById('progress-text').textContent = 'Decryption complete!';
                 } else {
-                    workerCard.classList.remove('active-worker');
-                    workerCard.querySelector('.status').textContent = 'Stopped';
+                    document.getElementById('progress-text').textContent = 'Decryption stopped';
                 }
+            }
+
+            exportResults() {
+                if (this.currentTopResults.length === 0) {
+                    alert('No results to export');
+                    return;
+                }
+                
+                let csv = 'Key,Score,Plaintext\n';
+                for (const result of this.currentTopResults) {
+                    csv += `"${result.key}",${result.score.toFixed(4)},"${result.plaintext.replace(/"/g, '""')}"\n`;
+                }
+                
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'playfair_results.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+
+            formatTime(seconds) {
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const secs = seconds % 60;
+                
+                return `${hours}h ${minutes}m ${secs}s`;
             }
         }
 
-        // Update progress display
-        function updateProgress() {
-            if (!isRunning) return;
-            
-            const now = performance.now();
-            const timeDiff = (now - lastUpdateTime) / 1000; // in seconds
-            
-            if (timeDiff > 0.5) { // Update every 0.5 seconds
-                const keysDiff = totalKeysTested;
-                keysPerSecond = Math.round(keysDiff / timeDiff);
-                
-                // Update UI
-                const progressPercent = Math.min(100, (totalKeysTested / totalPossibleKeys) * 100);
-                progressBarEl.style.width = `${progressPercent}%`;
-                keysTestedEl.textContent = `${totalKeysTested.toLocaleString()} keys tested`;
-                keysPerSecEl.textContent = `${keysPerSecond.toLocaleString()} keys/sec`;
-                
-                // Estimate time remaining
-                if (keysPerSecond > 0) {
-                    const remainingKeys = totalPossibleKeys - totalKeysTested;
-                    const secondsRemaining = Math.round(remainingKeys / keysPerSecond);
-                    
-                    if (secondsRemaining > 3600) {
-                        timeRemainingEl.textContent = `${Math.round(secondsRemaining / 3600)} hours remaining`;
-                    } else if (secondsRemaining > 60) {
-                        timeRemainingEl.textContent = `${Math.round(secondsRemaining / 60)} minutes remaining`;
-                    } else {
-                        timeRemainingEl.textContent = `${secondsRemaining} seconds remaining`;
-                    }
-                }
-                
-                lastUpdateTime = now;
-            }
-            
-            requestAnimationFrame(updateProgress);
-        }
-
-        // Update results display
-        function updateResultsDisplay() {
-            if (bestResults.length === 0) return;
-            
-            let html = '';
-            bestResults.forEach((result, index) => {
-                html += `
-                    <div class="result-item ${index === 0 ? 'active' : ''}">
-                        <span class="result-key">${result.key}</span>
-                        <span class="result-score">${result.score.toFixed(2)}</span>
-                        <div class="result-preview">${result.plaintext.substring(0, 50)}${result.plaintext.length > 50 ? '...' : ''}</div>
-                    </div>
-                `;
-            });
-            
-            resultsContainerEl.innerHTML = html;
-            
-            // Add click handler to show full plaintext
-            document.querySelectorAll('.result-item').forEach(item => {
-                item.addEventListener('click', function() {
-                    const key = this.querySelector('.result-key').textContent;
-                    const result = bestResults.find(r => r.key === key);
-                    if (result) {
-                        alert(`Key: ${key}\nScore: ${result.score.toFixed(2)}\n\nPlaintext:\n${result.plaintext}`);
-                    }
-                });
-            });
-        }
-
-        // Stop the attack
-        function stopAttack() {
-            if (!isRunning) return;
-            
-            isRunning = false;
-            
-            // Terminate all workers
-            workers.forEach(worker => worker.terminate());
-            workers = [];
-            
-            // Update UI
-            startBtn.disabled = false;
-            stopBtn.disabled = true;
-            
-            // Update worker cards
-            document.querySelectorAll('.worker-card').forEach(card => {
-                card.classList.remove('active-worker');
-                card.querySelector('.status').textContent = 'Stopped';
-            });
-            
-            // Final progress update
-            const totalTime = (performance.now() - startTime) / 1000;
-            keysPerSecEl.textContent = `${Math.round(totalKeysTested / totalTime).toLocaleString()} keys/sec (final)`;
-        }
-
-        // Initialize the app
-        initUI();
+        // Initialize the application when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            new PlayfairBreakerApp();
+        });
     </script>
 </body>
 </html>
