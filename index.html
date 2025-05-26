@@ -307,7 +307,7 @@
                 <div class="input-grid">
                     <div>
                         <label for="worker-count">Worker Count: <span class="tooltip">(?)
-                            <span class="tooltiptext">Number of parallel workers (default: 75% of CPU cores)</span>
+                            <span class="tooltiptext">Number of parallel workers (default: 90% of CPU cores)</span>
                         </span></label>
                         <input type="number" id="worker-count" value="0" min="1" max="32">
                     </div>
@@ -451,8 +451,8 @@
                 const inputCount = parseInt(document.getElementById('worker-count').value);
                 if (inputCount > 0) return inputCount;
                 
-                // Default to 75% of available cores
-                return Math.max(1, Math.floor((navigator.hardwareConcurrency || 4) * 0.75));
+                // Default to 90% of available cores
+                return Math.max(1, Math.floor((navigator.hardwareConcurrency || 4) * 0.90));
             }
 
             getBatchSize() {
