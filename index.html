@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Military-Grade Playfair Cipher Cracker v6.1</title>
+    <title>Military-Grade Vigenère Cipher Cracker v6.1</title>
     <style>
         :root {
             --bg: #0a0a12;
@@ -257,8 +257,8 @@
 <body>
     <div class="container">
         <div class="panel">
-            <h1>▪ MILITARY-GRADE PLAYFAIR CIPHER CRACKER v6.1 ▪</h1>
-            <p>Advanced brute-force attack system for decrypting Playfair cipher messages without the key</p>
+            <h1>▪ MILITARY-GRADE VIGENÈRE CIPHER CRACKER v6.1 ▪</h1>
+            <p>Advanced brute-force attack system for decrypting Vigenère cipher messages without the key</p>
             
             <label for="ciphertext">Ciphertext:</label>
             <textarea id="ciphertext" rows="5" placeholder="Enter ciphertext (letters only, no spaces or punctuation)...">OBKRUOXOGHULBSOLIFBBWFLRVQQPRNGKSSOTWTQSJQSSEKZZWATJKLUDIAWINFBNYPVTTMZFPKWGDKZXTJCDIGKUHUAUEKCAR</textarea>
@@ -271,13 +271,13 @@
                     <input type="text" id="known-text" placeholder="BERLIN,EAST,NORTH,CLOCK" value="BERLIN,EAST,NORTH,CLOCK">
                 </div>
                 <div>
-                    <label for="key-length">Key length:</label>
-                    <select id="key-length">
-                        <option value="5" selected>5 characters (most common)</option>
-                        <option value="6">6 characters</option>
-                        <option value="7">7 characters</option>
-                        <option value="8">8 characters</option>
-                    </select>
+                    <label for="key-length">Key length range: <span class="tooltip">(?)
+                        <span class="tooltiptext">Range of key lengths to test (most common are 3-12)</span>
+                    </span></label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="number" id="min-key-length" value="3" min="1" max="50" style="width: 50%;">
+                        <input type="number" id="max-key-length" value="12" min="1" max="50" style="width: 50%;">
+                    </div>
                 </div>
             </div>
 
@@ -293,9 +293,9 @@
                 <div class="input-grid">
                     <div>
                         <label for="custom-alphabet">Custom Alphabet: <span class="tooltip">(?)
-                            <span class="tooltiptext">Custom alphabet for the cipher (must be square number length)</span>
+                            <span class="tooltiptext">Custom alphabet for the cipher (e.g., A-Z, A-Z0-9, etc.)</span>
                         </span></label>
-                        <input type="text" id="custom-alphabet" placeholder="Leave blank for standard Playfair (A-Z no J)" value="ABCDEFGHIJKLMNOPQRSTUVWXYZ">
+                        <input type="text" id="custom-alphabet" placeholder="Leave blank for standard A-Z" value="ABCDEFGHIJKLMNOPQRSTUVWXYZ">
                     </div>
                     <div>
                         <label for="batch-size">Worker Batch Size: <span class="tooltip">(?)
@@ -364,7 +364,7 @@
         // ======================
         // CORE CRACKING ENGINE
         // ======================
-        class PlayfairCracker {
+        class VigenereCracker {
             constructor() {
                 this.workers = [];
                 this.keysTested = 0;
@@ -396,22 +396,31 @@
             }
 
             initPerformanceWarning() {
-                const keyLengthSelect = document.getElementById('key-length');
-                keyLengthSelect.addEventListener('change', (e) => {
-                    const length = parseInt(e.target.value);
+                const minKeyLength = document.getElementById('min-key-length');
+                const maxKeyLength = document.getElementById('max-key-length');
+                
+                const updateTotalKeys = () => {
+                    const minLen = parseInt(minKeyLength.value) || 3;
+                    const maxLen = parseInt(maxKeyLength.value) || 12;
                     const alphabet = this.getCurrentAlphabet();
-                    const totalKeys = Math.pow(alphabet.length, length);
+                    
+                    let totalKeys = 0;
+                    for (let len = minLen; len <= maxLen; len++) {
+                        totalKeys += Math.pow(alphabet.length, len);
+                    }
                     
                     document.getElementById('total-keys').textContent = totalKeys.toLocaleString();
                     
-                    if (length >= 7) {
-                        this.updateStatus(`WARNING: A ${length}-character key has ${totalKeys.toLocaleString()} possible combinations. This may take a very long time.`, false, 'warning');
+                    if (maxLen >= 8) {
+                        this.updateStatus(`WARNING: Testing keys up to ${maxLen} characters may take a very long time.`, false, 'warning');
                     }
-                });
+                };
+                
+                minKeyLength.addEventListener('change', updateTotalKeys);
+                maxKeyLength.addEventListener('change', updateTotalKeys);
                 
                 // Initialize total keys display
-                const alphabet = this.getCurrentAlphabet();
-                document.getElementById('total-keys').textContent = Math.pow(alphabet.length, 5).toLocaleString();
+                updateTotalKeys();
             }
 
             getCurrentAlphabet() {
@@ -421,7 +430,7 @@
                     const uniqueChars = [...new Set(customAlphabet.split(''))].sort();
                     return uniqueChars.join('');
                 }
-                return "ABCDEFGHIKLMNOPQRSTUVWXYZ"; // Standard Playfair (no J)
+                return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"; // Standard A-Z
             }
 
             validateAlphabet(alphabet) {
@@ -433,18 +442,6 @@
                 const uniqueChars = new Set(alphabet);
                 if (uniqueChars.size !== alphabet.length) {
                     return { valid: false, message: "Alphabet contains duplicate characters" };
-                }
-                
-                // Check for non-alphabetic characters
-                const nonAlpha = alphabet.match(/[^A-Z]/);
-                if (nonAlpha) {
-                    return { valid: false, message: "Alphabet can only contain A-Z characters" };
-                }
-                
-                // Check if length is a square number (for Playfair grid)
-                const sqrt = Math.sqrt(alphabet.length);
-                if (sqrt % 1 !== 0) {
-                    return { valid: false, message: "Alphabet length must be a square number (4, 9, 16, 25, etc.)" };
                 }
                 
                 return { valid: true };
@@ -470,7 +467,8 @@
                 // Validate input
                 const ciphertext = document.getElementById('ciphertext').value.trim().replace(/\s+/g, '').toUpperCase();
                 const knownText = document.getElementById('known-text').value.toUpperCase();
-                const keyLength = parseInt(document.getElementById('key-length').value);
+                const minKeyLength = parseInt(document.getElementById('min-key-length').value) || 3;
+                const maxKeyLength = parseInt(document.getElementById('max-key-length').value) || 12;
                 const alphabet = this.getCurrentAlphabet();
                 
                 // Validate alphabet first
@@ -492,8 +490,9 @@
                     return;
                 }
 
-                if (ciphertext.length % 2 !== 0) {
-                    this.updateStatus("WARNING: Ciphertext length is odd - last character may be ignored", false, 'warning');
+                if (minKeyLength > maxKeyLength) {
+                    this.updateStatus("ERROR: Minimum key length cannot be greater than maximum key length", true);
+                    return;
                 }
 
                 // Initialize attack
@@ -512,7 +511,7 @@
                 document.getElementById('stop').disabled = false;
 
                 // Initialize key generator
-                this.keyGenerator.init(alphabet, keyLength);
+                this.keyGenerator.init(alphabet, minKeyLength, maxKeyLength);
                 document.getElementById('total-keys').textContent = this.keyGenerator.totalKeys.toLocaleString();
 
                 // Create worker script URL
@@ -578,19 +577,19 @@
             }
 
             getWorkerScript(alphabet) {
-                // Worker implementation with proper Playfair decryption
+                // Worker implementation with proper Vigenère decryption
                 const workerCode = `
                     const ALPHABET = "${alphabet}";
-                    const GRID_SIZE = ${Math.sqrt(alphabet.length)};
+                    const ALPHABET_SIZE = ${alphabet.length};
                     
                     const ENGLISH_FREQUENCIES = {
                         'A': 0.08167, 'B': 0.01492, 'C': 0.02782, 'D': 0.04253,
                         'E': 0.12702, 'F': 0.02228, 'G': 0.02015, 'H': 0.06094,
-                        'I': 0.06966, 'K': 0.00772, 'L': 0.04025, 'M': 0.02406,
-                        'N': 0.06749, 'O': 0.07507, 'P': 0.01929, 'Q': 0.00095,
-                        'R': 0.05987, 'S': 0.06327, 'T': 0.09056, 'U': 0.02758,
-                        'V': 0.00978, 'W': 0.0236, 'X': 0.0015, 'Y': 0.01974,
-                        'Z': 0.00074
+                        'I': 0.06966, 'J': 0.00153, 'K': 0.00772, 'L': 0.04025,
+                        'M': 0.02406, 'N': 0.06749, 'O': 0.07507, 'P': 0.01929,
+                        'Q': 0.00095, 'R': 0.05987, 'S': 0.06327, 'T': 0.09056,
+                        'U': 0.02758, 'V': 0.00978, 'W': 0.0236, 'X': 0.0015,
+                        'Y': 0.01974, 'Z': 0.00074
                     };
 
                     const COMMON_WORDS = [
@@ -601,76 +600,28 @@
                         'COULD', 'INTO', 'YOUR', 'THAN', 'HAVE', 'ITS', 'OVER', 'VERY'
                     ];
 
-                    function createKeySquare(key) {
-                        const keySquare = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE));
-                        const used = new Set();
-                        
-                        let row = 0, col = 0;
-                        
-                        // Add key letters first
-                        for (const char of key.toUpperCase()) {
-                            if (ALPHABET.includes(char) && !used.has(char)) {
-                                keySquare[row][col] = char;
-                                used.add(char);
-                                if (++col === GRID_SIZE) { col = 0; row++; }
-                            }
-                        }
-                        
-                        // Add remaining alphabet
-                        for (const char of ALPHABET) {
-                            if (!used.has(char)) {
-                                keySquare[row][col] = char;
-                                used.add(char);
-                                if (++col === GRID_SIZE) { col = 0; row++; }
-                            }
-                        }
-                        
-                        return keySquare;
-                    }
-
-                    function findPosition(keySquare, char) {
-                        for (let row = 0; row < GRID_SIZE; row++) {
-                            for (let col = 0; col < GRID_SIZE; col++) {
-                                if (keySquare[row][col] === char) {
-                                    return { row, col };
-                                }
-                            }
-                        }
-                        return null;
-                    }
-
-                    function playfairDecrypt(ciphertext, key) {
-                        const keySquare = createKeySquare(key);
+                    function vigenereDecrypt(ciphertext, key) {
                         let plaintext = "";
+                        const keyLen = key.length;
                         
-                        // Process ciphertext in digraphs
-                        for (let i = 0; i < ciphertext.length; i += 2) {
-                            let a = ciphertext[i];
-                            let b = ciphertext[i+1] || 'X'; // Handle odd length with padding
+                        for (let i = 0; i < ciphertext.length; i++) {
+                            const cipherChar = ciphertext[i];
+                            const keyChar = key[i % keyLen];
                             
-                            // Find positions in key square
-                            const posA = findPosition(keySquare, a);
-                            const posB = findPosition(keySquare, b);
+                            const cipherPos = ALPHABET.indexOf(cipherChar);
+                            const keyPos = ALPHABET.indexOf(keyChar);
                             
-                            if (!posA || !posB) {
-                                return ""; // Invalid characters in ciphertext
+                            if (cipherPos === -1 || keyPos === -1) {
+                                return ""; // Invalid characters
                             }
                             
-                            // Apply decryption rules
-                            if (posA.row === posB.row) {
-                                // Same row - shift left
-                                plaintext += keySquare[posA.row][(posA.col + GRID_SIZE - 1) % GRID_SIZE];
-                                plaintext += keySquare[posB.row][(posB.col + GRID_SIZE - 1) % GRID_SIZE];
-                            } else if (posA.col === posB.col) {
-                                // Same column - shift up
-                                plaintext += keySquare[(posA.row + GRID_SIZE - 1) % GRID_SIZE][posA.col];
-                                plaintext += keySquare[(posB.row + GRID_SIZE - 1) % GRID_SIZE][posB.col];
-                            } else {
-                                // Rectangle rule
-                                plaintext += keySquare[posA.row][posB.col];
-                                plaintext += keySquare[posB.row][posA.col];
-                            }
+                            // Vigenère decryption formula: P = (C - K) mod alphabet_size
+                            let plainPos = (cipherPos - keyPos) % ALPHABET_SIZE;
+                            if (plainPos < 0) plainPos += ALPHABET_SIZE;
+                            
+                            plaintext += ALPHABET[plainPos];
                         }
+                        
                         return plaintext;
                     }
 
@@ -734,7 +685,7 @@
                             }
                         }
                         
-                        // Penalize for non-alphabetic characters (shouldn't exist in proper Playfair)
+                        // Penalize for non-alphabetic characters (shouldn't exist in proper Vigenère)
                         const nonAlpha = text.match(/[^A-Z]/gi);
                         if (nonAlpha) {
                             score -= nonAlpha.length * 0.1;
@@ -751,7 +702,7 @@
                         
                         for (const key of keys) {
                             try {
-                                const plaintext = playfairDecrypt(ciphertext, key);
+                                const plaintext = vigenereDecrypt(ciphertext, key);
                                 const score = scoreText(plaintext, known);
                                 
                                 if (score > 0.5) { // Lower threshold to catch more potential matches
@@ -981,16 +932,27 @@
         class KeyGenerator {
             constructor() {
                 this.alphabet = "";
-                this.keyLength = 0;
+                this.minKeyLength = 0;
+                this.maxKeyLength = 0;
                 this.currentIndex = 0;
                 this.totalKeys = 0;
+                this.currentLength = 0;
+                this.lengthStartIndex = 0;
             }
 
-            init(alphabet, keyLength) {
+            init(alphabet, minKeyLength, maxKeyLength) {
                 this.alphabet = alphabet;
-                this.keyLength = keyLength;
+                this.minKeyLength = minKeyLength;
+                this.maxKeyLength = maxKeyLength;
                 this.currentIndex = 0;
-                this.totalKeys = Math.pow(alphabet.length, keyLength);
+                this.currentLength = minKeyLength;
+                this.lengthStartIndex = 0;
+                
+                // Calculate total keys across all lengths
+                this.totalKeys = 0;
+                for (let len = minKeyLength; len <= maxKeyLength; len++) {
+                    this.totalKeys += Math.pow(alphabet.length, len);
+                }
             }
 
             getNextBatch(size) {
@@ -1006,11 +968,25 @@
             }
 
             generateKey(index) {
+                // Determine which key length this index falls into
+                let cumulative = 0;
+                let len = this.minKeyLength;
+                
+                for (; len <= this.maxKeyLength; len++) {
+                    const keysAtThisLength = Math.pow(this.alphabet.length, len);
+                    if (index < cumulative + keysAtThisLength) {
+                        break;
+                    }
+                    cumulative += keysAtThisLength;
+                }
+                
+                // Generate the key at the relative position within this length
+                const relativeIndex = index - cumulative;
                 let key = "";
-                let remaining = index;
+                let remaining = relativeIndex;
                 const base = this.alphabet.length;
                 
-                for (let i = 0; i < this.keyLength; i++) {
+                for (let i = 0; i < len; i++) {
                     const pos = remaining % base;
                     key = this.alphabet.charAt(pos) + key;
                     remaining = Math.floor(remaining / base);
@@ -1024,12 +1000,12 @@
         // INITIALIZE THE SYSTEM
         // ======================
         document.addEventListener('DOMContentLoaded', () => {
-            const cracker = new PlayfairCracker();
+            const cracker = new VigenereCracker();
             
             // For debugging/development access
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
                 window.cracker = cracker;
-                console.log('PlayfairCracker instance available as window.cracker');
+                console.log('VigenereCracker instance available as window.cracker');
             }
         });
     </script>
