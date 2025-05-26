@@ -167,8 +167,8 @@
             }
 
             startAttack() {
-                const ciphertext = document.getElementById('ciphertext').value.trim().replace(/\s+/g, '');
-                const knownText = document.getElementById('known-text').value;
+                const ciphertext = document.getElementById('ciphertext').value.trim().replace(/\s+/g, '').toUpperCase();
+                const knownText = document.getElementById('known-text').value.toUpperCase();
                 const keyLength = parseInt(document.getElementById('key-length').value);
 
                 if (!ciphertext) {
@@ -193,7 +193,7 @@
                 this.keyGenerator.init(alphabet, keyLength);
 
                 // Create workers
-                this.createWorkers(navigator.hardwareConcurrency || 4, ciphertext, knownText);
+                this.createWorkers(Math.min(navigator.hardwareConcurrency || 4, 8), ciphertext, knownText);
 
                 // Start monitoring
                 this.updateInterval = setInterval(() => this.updateDashboard(), 200);
@@ -279,7 +279,7 @@
                                 }
                             }
                         }
-                        return { row: 0, col: 0 };
+                        return null;
                     }
 
                     const playfairDecrypt = (ciphertext, key) => {
@@ -288,12 +288,20 @@
                         
                         // Process ciphertext in digraphs
                         for (let i = 0; i < ciphertext.length; i += 2) {
-                            const a = ciphertext[i];
-                            const b = ciphertext[i+1] || 'X'; // Handle odd length with padding
+                            let a = ciphertext[i];
+                            let b = ciphertext[i+1] || 'X'; // Handle odd length with padding
+                            
+                            // Replace J with I if present
+                            if (a === 'J') a = 'I';
+                            if (b === 'J') b = 'I';
                             
                             // Find positions in key square
                             const posA = findPosition(keySquare, a);
                             const posB = findPosition(keySquare, b);
+                            
+                            if (!posA || !posB) {
+                                return ""; // Invalid characters in ciphertext
+                            }
                             
                             // Apply decryption rules
                             if (posA.row === posB.row) {
@@ -314,21 +322,23 @@
                     };
 
                     const scoreText = (text, known) => {
+                        if (!text || text.length === 0) return 0;
+                        
                         let score = 0;
                         
                         // Check for common words
-                        const common = ["THE", "AND", "THAT", "HAVE", "THIS", "FOR", "NOT", "WITH", "YOU"];
+                        const common = ["THE", "AND", "THAT", "HAVE", "THIS", "FOR", "NOT", "WITH", "YOU", "ARE"];
                         common.forEach(word => {
                             const regex = new RegExp(word, 'gi');
                             const matches = text.match(regex);
-                            if (matches) score += matches.length * 0.1;
+                            if (matches) score += matches.length * 0.2;
                         });
                         
                         // Check known fragments
                         if (known) {
                             known.split(',').forEach(fragment => {
-                                const trimmed = fragment.trim().toUpperCase();
-                                if (text.includes(trimmed)) {
+                                const trimmed = fragment.trim();
+                                if (trimmed && text.includes(trimmed)) {
                                     score += 0.5 * (trimmed.length / 3);
                                 }
                             });
@@ -336,21 +346,21 @@
                         
                         // Check letter frequency
                         const freqScore = {
-                            'E': 12.7, 'T': 9.1, 'A': 8.2, 'O': 7.5, 'I': 7.0,
-                            'N': 6.7, 'S': 6.3, 'H': 6.1, 'R': 6.0, 'D': 4.3
+                            'E': 0.127, 'T': 0.091, 'A': 0.082, 'O': 0.075, 'I': 0.070,
+                            'N': 0.067, 'S': 0.063, 'H': 0.061, 'R': 0.060, 'D': 0.043
                         };
                         
-                        for (const char in freqScore) {
-                            const count = (text.match(new RegExp(char, 'gi')) || [];
-                            score += count.length * (freqScore[char] / 1000);
+                        const totalChars = text.length;
+                        if (totalChars > 0) {
+                            for (const char in freqScore) {
+                                const count = (text.match(new RegExp(char, 'gi')) || []).length;
+                                score += count * freqScore[char];
+                            }
                         }
                         
                         return score;
                     };
 
-                    let lastUpdate = Date.now();
-                    let processed = 0;
-                    
                     onmessage = function(e) {
                         const { ciphertext, keys, known } = e.data;
                         const results = [];
@@ -371,7 +381,7 @@
                         }
                         
                         const batchTime = performance.now() - start;
-                        const currentSpeed = Math.round((keys.length / batchTime) * 1000);
+                        const currentSpeed = batchTime > 0 ? Math.round((keys.length / batchTime) * 1000) : 0;
                         
                         postMessage({
                             keysTested: keys.length,
@@ -387,7 +397,7 @@
             assignWork(workerId, ciphertext, knownText) {
                 if (!this.isRunning) return;
                 
-                const batchSize = 5000; // Keys per batch
+                const batchSize = 1000; // Smaller batch size for better responsiveness
                 const batch = this.keyGenerator.getNextBatch(batchSize);
                 
                 if (batch.length > 0) {
@@ -397,17 +407,18 @@
                         known: knownText
                     });
                 } else {
-                    // Check if all workers are done
                     this.checkCompletion();
                 }
             }
 
             processResults(results) {
                 results.forEach(result => {
+                    // Only add results with score > 0.7 or if we have less than 10 results
                     if (result.score > 0.7 || this.topResults.length < 10) {
                         this.topResults.push(result);
                         this.topResults.sort((a, b) => b.score - a.score);
                         
+                        // Keep only top 10 results
                         if (this.topResults.length > 10) {
                             this.topResults.pop();
                         }
@@ -426,7 +437,7 @@
                     div.className = 'result';
                     div.innerHTML = `
                         <strong>${result.key}</strong> (score: ${result.score.toFixed(2)})
-                        <div>${result.plaintext.substring(0, 80)}</div>
+                        <div>${result.plaintext.substring(0, 80)}${result.plaintext.length > 80 ? '...' : ''}</div>
                     `;
                     container.appendChild(div);
                 });
@@ -437,7 +448,6 @@
                 
                 // Calculate overall speed
                 const totalSpeed = this.workerSpeeds.reduce((sum, speed) => sum + speed, 0);
-                const elapsed = (Date.now() - this.startTime) / 1000;
                 
                 // Update UI
                 document.getElementById('keys-tried').textContent = this.keysTested.toLocaleString();
@@ -508,7 +518,6 @@
                 this.keyLength = 0;
                 this.currentIndex = 0;
                 this.totalKeys = 0;
-                this.generated = new Set();
             }
 
             init(alphabet, keyLength) {
@@ -516,19 +525,17 @@
                 this.keyLength = keyLength;
                 this.currentIndex = 0;
                 this.totalKeys = Math.pow(alphabet.length, keyLength);
-                this.generated = new Set();
             }
 
             getNextBatch(size) {
                 const batch = [];
-                while (batch.length < size && this.currentIndex < this.totalKeys) {
-                    const key = this.generateKey(this.currentIndex);
-                    if (!this.generated.has(key)) {
-                        batch.push(key);
-                        this.generated.add(key);
-                    }
-                    this.currentIndex++;
+                const remaining = Math.min(size, this.totalKeys - this.currentIndex);
+                
+                for (let i = 0; i < remaining; i++) {
+                    batch.push(this.generateKey(this.currentIndex + i));
                 }
+                
+                this.currentIndex += remaining;
                 return batch;
             }
 
@@ -551,7 +558,10 @@
         // INITIALIZE THE SYSTEM
         // ======================
         document.addEventListener('DOMContentLoaded', () => {
-            new PlayfairCracker();
+            const cracker = new PlayfairCracker();
+            
+            // For debugging
+            window.cracker = cracker;
         });
     </script>
 </body>
