@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Military-Grade Vigenère Cipher Cracker v6.1</title>
+    <title>Military-Grade Vigenère Cipher Cracker v7.0</title>
     <style>
         :root {
             --bg: #0a0a12;
@@ -257,7 +257,7 @@
 <body>
     <div class="container">
         <div class="panel">
-            <h1>▪ MILITARY-GRADE VIGENÈRE CIPHER CRACKER v6.1 ▪</h1>
+            <h1>▪ MILITARY-GRADE VIGENÈRE CIPHER CRACKER v7.0 ▪</h1>
             <p>Advanced brute-force attack system for decrypting Vigenère cipher messages without the key</p>
             
             <label for="ciphertext">Ciphertext:</label>
@@ -301,7 +301,7 @@
                         <label for="batch-size">Worker Batch Size: <span class="tooltip">(?)
                             <span class="tooltiptext">Keys per batch per worker (adjust for performance)</span>
                         </span></label>
-                        <input type="number" id="batch-size" value="10000" min="1000" max="50000">
+                        <input type="number" id="batch-size" value="50000" min="1000" max="500000">
                     </div>
                 </div>
                 <div class="input-grid">
@@ -375,6 +375,9 @@
                 this.keyGenerator = new KeyGenerator();
                 this.updateInterval = null;
                 this.workerScriptUrl = null;
+                this.lastUpdateTime = 0;
+                this.speedSamples = [];
+                this.maxSpeedSamples = 10;
                 
                 this.initControls();
                 this.initPerformanceWarning();
@@ -456,7 +459,7 @@
             }
 
             getBatchSize() {
-                return parseInt(document.getElementById('batch-size').value) || 10000;
+                return parseInt(document.getElementById('batch-size').value) || 50000;
             }
 
             getScoreThreshold() {
@@ -502,6 +505,8 @@
                 this.startTime = Date.now();
                 this.topResults = [];
                 this.workerSpeeds = [];
+                this.speedSamples = [];
+                this.lastUpdateTime = this.startTime;
                 
                 // Update UI
                 this.updateStatus("INITIALIZING CRACKING SEQUENCE...");
@@ -518,7 +523,7 @@
                 if (this.workerScriptUrl) {
                     URL.revokeObjectURL(this.workerScriptUrl);
                 }
-                this.workerScriptUrl = this.getWorkerScript(alphabet);
+                this.workerScriptUrl = this.getWorkerScript(alphabet, ciphertext.length);
 
                 // Create workers
                 const workerCount = this.getWorkerCount();
@@ -538,9 +543,9 @@
                     worker.onmessage = (e) => {
                         if (!this.isRunning) return;
                         
-                        const { keysTested, results } = e.data;
+                        const { keysTested, results, currentSpeed } = e.data;
                         this.keysTested += keysTested;
-                        this.workerSpeeds[i] = e.data.currentSpeed || 0;
+                        this.workerSpeeds[i] = currentSpeed || 0;
                         
                         // Process results
                         if (results && results.length > 0) {
@@ -576,42 +581,72 @@
                 }
             }
 
-            getWorkerScript(alphabet) {
-                // Worker implementation with proper Vigenère decryption
+            getWorkerScript(alphabet, ciphertextLength) {
+                // Precompute alphabet positions for faster decryption
+                const alphabetPositions = {};
+                for (let i = 0; i < alphabet.length; i++) {
+                    alphabetPositions[alphabet[i]] = i;
+                }
+
+                // Worker implementation with optimized Vigenère decryption
                 const workerCode = `
                     const ALPHABET = "${alphabet}";
                     const ALPHABET_SIZE = ${alphabet.length};
+                    const ALPHABET_POSITIONS = ${JSON.stringify(alphabetPositions)};
+                    const CIPHERTEXT_LENGTH = ${ciphertextLength};
                     
+                    // English letter frequencies (percentages)
                     const ENGLISH_FREQUENCIES = {
-                        'A': 0.08167, 'B': 0.01492, 'C': 0.02782, 'D': 0.04253,
-                        'E': 0.12702, 'F': 0.02228, 'G': 0.02015, 'H': 0.06094,
-                        'I': 0.06966, 'J': 0.00153, 'K': 0.00772, 'L': 0.04025,
-                        'M': 0.02406, 'N': 0.06749, 'O': 0.07507, 'P': 0.01929,
-                        'Q': 0.00095, 'R': 0.05987, 'S': 0.06327, 'T': 0.09056,
-                        'U': 0.02758, 'V': 0.00978, 'W': 0.0236, 'X': 0.0015,
-                        'Y': 0.01974, 'Z': 0.00074
+                        'A': 8.167, 'B': 1.492, 'C': 2.782, 'D': 4.253,
+                        'E': 12.702, 'F': 2.228, 'G': 2.015, 'H': 6.094,
+                        'I': 6.966, 'J': 0.153, 'K': 0.772, 'L': 4.025,
+                        'M': 2.406, 'N': 6.749, 'O': 7.507, 'P': 1.929,
+                        'Q': 0.095, 'R': 5.987, 'S': 6.327, 'T': 9.056,
+                        'U': 2.758, 'V': 0.978, 'W': 2.360, 'X': 0.150,
+                        'Y': 1.974, 'Z': 0.074
                     };
 
+                    // Common words dictionary (frequency sorted)
                     const COMMON_WORDS = [
-                        'THE', 'AND', 'THAT', 'HAVE', 'FOR', 'NOT', 'WITH', 'YOU',
-                        'THIS', 'BUT', 'HIS', 'FROM', 'THEY', 'WILL', 'WOULD', 'THERE',
-                        'THEIR', 'WHAT', 'ABOUT', 'WHICH', 'WHEN', 'WERE', 'OTHER',
-                        'WAS', 'ALL', 'SOME', 'OUT', 'ARE', 'THESE', 'TIME', 'MORE',
-                        'COULD', 'INTO', 'YOUR', 'THAN', 'HAVE', 'ITS', 'OVER', 'VERY'
+                        'THE', 'BE', 'TO', 'OF', 'AND', 'A', 'IN', 'THAT', 'HAVE', 'I',
+                        'IT', 'FOR', 'NOT', 'ON', 'WITH', 'HE', 'AS', 'YOU', 'DO', 'AT',
+                        'THIS', 'BUT', 'HIS', 'BY', 'FROM', 'THEY', 'WE', 'SAY', 'HER', 'SHE',
+                        'OR', 'AN', 'WILL', 'MY', 'ONE', 'ALL', 'WOULD', 'THERE', 'THEIR', 'WHAT',
+                        'SO', 'UP', 'OUT', 'IF', 'ABOUT', 'WHO', 'GET', 'WHICH', 'GO', 'ME',
+                        'WHEN', 'MAKE', 'CAN', 'LIKE', 'TIME', 'NO', 'JUST', 'HIM', 'KNOW', 'TAKE',
+                        'PEOPLE', 'INTO', 'YEAR', 'YOUR', 'GOOD', 'SOME', 'COULD', 'THEM', 'SEE', 'OTHER',
+                        'THAN', 'THEN', 'NOW', 'LOOK', 'ONLY', 'COME', 'ITS', 'OVER', 'THINK', 'ALSO',
+                        'BACK', 'AFTER', 'USE', 'TWO', 'HOW', 'OUR', 'WORK', 'FIRST', 'WELL', 'WAY',
+                        'EVEN', 'NEW', 'WANT', 'BECAUSE', 'ANY', 'THESE', 'GIVE', 'DAY', 'MOST', 'US'
                     ];
 
+                    // Common bigrams (2-letter combinations)
+                    const COMMON_BIGRAMS = [
+                        'TH', 'HE', 'IN', 'ER', 'AN', 'RE', 'ND', 'AT', 'ON', 'NT',
+                        'HA', 'ES', 'ST', 'EN', 'ED', 'TO', 'IT', 'OU', 'EA', 'HI',
+                        'IS', 'OR', 'TI', 'AS', 'TE', 'ET', 'NG', 'OF', 'AL', 'DE',
+                        'SE', 'LE', 'SA', 'SI', 'AR', 'VE', 'RA', 'LD', 'UR'
+                    ];
+
+                    // Common trigrams (3-letter combinations)
+                    const COMMON_TRIGRAMS = [
+                        'THE', 'AND', 'ING', 'HER', 'HAT', 'HIS', 'THA', 'ERE', 'FOR', 'ENT',
+                        'ION', 'TER', 'WAS', 'YOU', 'ITH', 'VER', 'ALL', 'WIT', 'THI', 'TIO'
+                    ];
+
+                    // Optimized Vigenère decryption using precomputed positions
                     function vigenereDecrypt(ciphertext, key) {
-                        let plaintext = "";
                         const keyLen = key.length;
+                        const plaintext = new Array(ciphertext.length);
                         
                         for (let i = 0; i < ciphertext.length; i++) {
                             const cipherChar = ciphertext[i];
                             const keyChar = key[i % keyLen];
                             
-                            const cipherPos = ALPHABET.indexOf(cipherChar);
-                            const keyPos = ALPHABET.indexOf(keyChar);
+                            const cipherPos = ALPHABET_POSITIONS[cipherChar];
+                            const keyPos = ALPHABET_POSITIONS[keyChar];
                             
-                            if (cipherPos === -1 || keyPos === -1) {
+                            if (cipherPos === undefined || keyPos === undefined) {
                                 return ""; // Invalid characters
                             }
                             
@@ -619,10 +654,10 @@
                             let plainPos = (cipherPos - keyPos) % ALPHABET_SIZE;
                             if (plainPos < 0) plainPos += ALPHABET_SIZE;
                             
-                            plaintext += ALPHABET[plainPos];
+                            plaintext[i] = ALPHABET[plainPos];
                         }
                         
-                        return plaintext;
+                        return plaintext.join('');
                     }
 
                     function highlightMatches(text, known) {
@@ -639,37 +674,70 @@
                         return result;
                     }
 
+                    // More sophisticated scoring algorithm
                     function scoreText(text, known) {
                         if (!text || text.length === 0) return 0;
                         
                         let score = 0;
+                        const upperText = text.toUpperCase();
+                        const textLen = upperText.length;
                         
-                        // Check for common words
+                        // 1. Check for common words (highest weight)
                         for (const word of COMMON_WORDS) {
-                            const regex = new RegExp(word, 'gi');
-                            const matches = text.match(regex);
-                            if (matches) {
-                                score += matches.length * (0.1 + (word.length * 0.05));
+                            if (word.length > textLen) continue;
+                            
+                            let pos = 0;
+                            while ((pos = upperText.indexOf(word, pos)) !== -1) {
+                                // Longer words get more weight, common words get more weight
+                                score += 0.5 + (word.length * 0.3) + (COMMON_WORDS.indexOf(word) < 20 ? 0.5 : 0);
+                                pos += word.length;
                             }
                         }
                         
-                        // Check known fragments
+                        // 2. Check known fragments (very high weight)
                         if (known && known.trim() !== '') {
                             const fragments = known.split(',').map(f => f.trim()).filter(f => f.length > 0);
                             for (const fragment of fragments) {
-                                if (text.includes(fragment)) {
-                                    score += 5 + (fragment.length * 2);
+                                if (fragment.length > textLen) continue;
+                                
+                                let pos = 0;
+                                while ((pos = upperText.indexOf(fragment, pos)) !== -1) {
+                                    // Known fragments are very important
+                                    score += 5 + (fragment.length * 1.5);
+                                    pos += fragment.length;
                                 }
                             }
                         }
                         
-                        // Check letter frequency
+                        // 3. Check common trigrams (medium weight)
+                        for (const trigram of COMMON_TRIGRAMS) {
+                            if (trigram.length > textLen) continue;
+                            
+                            let pos = 0;
+                            while ((pos = upperText.indexOf(trigram, pos)) !== -1) {
+                                score += 0.3;
+                                pos += trigram.length;
+                            }
+                        }
+                        
+                        // 4. Check common bigrams (low weight)
+                        for (const bigram of COMMON_BIGRAMS) {
+                            if (bigram.length > textLen) continue;
+                            
+                            let pos = 0;
+                            while ((pos = upperText.indexOf(bigram, pos)) !== -1) {
+                                score += 0.1;
+                                pos += bigram.length;
+                            }
+                        }
+                        
+                        // 5. Letter frequency analysis
                         const charCounts = {};
                         let totalChars = 0;
                         
                         // Count character frequencies
-                        for (const char of text.toUpperCase()) {
-                            if (/[A-Z]/.test(char)) {
+                        for (const char of upperText) {
+                            if (ALPHABET_POSITIONS[char] !== undefined) {
                                 charCounts[char] = (charCounts[char] || 0) + 1;
                                 totalChars++;
                             }
@@ -678,17 +746,26 @@
                         // Compare to English frequencies
                         if (totalChars > 0) {
                             for (const char in ENGLISH_FREQUENCIES) {
-                                const expected = ENGLISH_FREQUENCIES[char];
+                                if (ALPHABET_POSITIONS[char] === undefined) continue;
+                                
+                                const expected = ENGLISH_FREQUENCIES[char] / 100; // Convert percentage to fraction
                                 const observed = (charCounts[char] || 0) / totalChars;
                                 const diff = Math.abs(expected - observed);
-                                score += (1 - diff) * expected * 10;
+                                
+                                // Higher score for better matches, with more weight to common letters
+                                score += (1 - diff) * expected * 15;
                             }
                         }
                         
-                        // Penalize for non-alphabetic characters (shouldn't exist in proper Vigenère)
-                        const nonAlpha = text.match(/[^A-Z]/gi);
+                        // 6. Penalize for non-alphabetic characters (shouldn't exist in proper Vigenère)
+                        const nonAlpha = upperText.match(new RegExp(\`[^${ALPHABET}]\`, 'g'));
                         if (nonAlpha) {
-                            score -= nonAlpha.length * 0.1;
+                            score -= nonAlpha.length * 0.2;
+                        }
+                        
+                        // 7. Normalize score by text length (longer texts can have higher scores)
+                        if (textLen > 0) {
+                            score = score * (Math.min(textLen, 100) / 100);
                         }
                         
                         return Math.max(0, score);
@@ -697,27 +774,24 @@
                     onmessage = function(e) {
                         const { ciphertext, keys, known } = e.data;
                         const results = [];
-                        
-                        const start = performance.now();
+                        const startTime = performance.now();
                         
                         for (const key of keys) {
-                            try {
-                                const plaintext = vigenereDecrypt(ciphertext, key);
-                                const score = scoreText(plaintext, known);
-                                
-                                if (score > 0.5) { // Lower threshold to catch more potential matches
-                                    results.push({
-                                        key,
-                                        plaintext,
-                                        score: score.toFixed(2)
-                                    });
-                                }
-                            } catch (err) {
-                                console.error("Worker error:", err);
+                            const plaintext = vigenereDecrypt(ciphertext, key);
+                            if (!plaintext) continue;
+                            
+                            const score = scoreText(plaintext, known);
+                            
+                            if (score > 0.5) { // Lower threshold to catch more potential matches
+                                results.push({
+                                    key,
+                                    plaintext,
+                                    score: parseFloat(score.toFixed(2))
+                                });
                             }
                         }
                         
-                        const batchTime = performance.now() - start;
+                        const batchTime = performance.now() - startTime;
                         const currentSpeed = batchTime > 0 ? Math.round((keys.length / batchTime) * 1000) : 0;
                         
                         postMessage({
@@ -752,6 +826,7 @@
                 if (!results || results.length === 0) return;
                 
                 const threshold = this.getScoreThreshold();
+                const now = Date.now();
                 
                 results.forEach(result => {
                     // Convert score to number if it's a string
@@ -759,14 +834,33 @@
                     
                     // Only add results with score > threshold or if we have less than 15 results
                     if (score > threshold || this.topResults.length < 15) {
-                        this.topResults.push({
-                            key: result.key,
-                            plaintext: result.plaintext,
-                            score: score
-                        });
+                        // Check if this key already exists in results
+                        const existingIndex = this.topResults.findIndex(r => r.key === result.key);
                         
-                        // Sort by score descending
-                        this.topResults.sort((a, b) => b.score - a.score);
+                        if (existingIndex >= 0) {
+                            // Update if this score is better
+                            if (score > this.topResults[existingIndex].score) {
+                                this.topResults[existingIndex] = {
+                                    key: result.key,
+                                    plaintext: result.plaintext,
+                                    score: score,
+                                    timestamp: now
+                                };
+                            }
+                        } else {
+                            this.topResults.push({
+                                key: result.key,
+                                plaintext: result.plaintext,
+                                score: score,
+                                timestamp: now
+                            });
+                        }
+                        
+                        // Sort by score descending, then by recency
+                        this.topResults.sort((a, b) => {
+                            if (b.score !== a.score) return b.score - a.score;
+                            return b.timestamp - a.timestamp;
+                        });
                         
                         // Keep only top 15 results
                         if (this.topResults.length > 15) {
@@ -837,18 +931,34 @@
             updateDashboard() {
                 if (!this.isRunning) return;
                 
+                const now = Date.now();
+                const timeElapsed = (now - this.lastUpdateTime) / 1000; // in seconds
+                
                 // Calculate overall speed
                 const totalSpeed = this.workerSpeeds.reduce((sum, speed) => sum + speed, 0);
                 const avgSpeed = this.workers.length > 0 ? Math.round(totalSpeed / this.workers.length) : 0;
                 
+                // Update speed samples for smoothing
+                if (totalSpeed > 0) {
+                    this.speedSamples.push(totalSpeed);
+                    if (this.speedSamples.length > this.maxSpeedSamples) {
+                        this.speedSamples.shift();
+                    }
+                }
+                
+                // Calculate smoothed speed
+                const smoothedSpeed = this.speedSamples.length > 0 
+                    ? Math.round(this.speedSamples.reduce((sum, speed) => sum + speed, 0) / this.speedSamples.length)
+                    : 0;
+                
                 // Update UI
                 document.getElementById('keys-tried').textContent = this.keysTested.toLocaleString();
-                document.getElementById('speed').textContent = `${totalSpeed.toLocaleString()} keys/sec (avg ${avgSpeed.toLocaleString()}/worker)`;
+                document.getElementById('speed').textContent = `${smoothedSpeed.toLocaleString()} keys/sec (avg ${avgSpeed.toLocaleString()}/worker)`;
                 
                 // Update ETA
-                if (totalSpeed > 0) {
+                if (smoothedSpeed > 0) {
                     const remainingKeys = this.keyGenerator.totalKeys - this.keyGenerator.currentIndex;
-                    const etaSeconds = Math.round(remainingKeys / totalSpeed);
+                    const etaSeconds = Math.round(remainingKeys / smoothedSpeed);
                     document.getElementById('eta').textContent = this.formatTime(etaSeconds);
                 }
                 
@@ -861,6 +971,8 @@
                     if (progressBar) progressBar.style.width = `${progress}%`;
                     if (speedEl) speedEl.textContent = `${this.workerSpeeds[i].toLocaleString()} keys/s`;
                 });
+                
+                this.lastUpdateTime = now;
             }
 
             updateStatus(message, isError = false, type = '') {
@@ -927,7 +1039,7 @@
         }
 
         // ======================
-        // KEY GENERATION SYSTEM
+        // OPTIMIZED KEY GENERATION SYSTEM
         // ======================
         class KeyGenerator {
             constructor() {
@@ -938,6 +1050,8 @@
                 this.totalKeys = 0;
                 this.currentLength = 0;
                 this.lengthStartIndex = 0;
+                this.keysByLength = [];
+                this.alphabetSize = 0;
             }
 
             init(alphabet, minKeyLength, maxKeyLength) {
@@ -947,11 +1061,20 @@
                 this.currentIndex = 0;
                 this.currentLength = minKeyLength;
                 this.lengthStartIndex = 0;
+                this.alphabetSize = alphabet.length;
                 
-                // Calculate total keys across all lengths
+                // Precompute keys by length
+                this.keysByLength = [];
                 this.totalKeys = 0;
+                
                 for (let len = minKeyLength; len <= maxKeyLength; len++) {
-                    this.totalKeys += Math.pow(alphabet.length, len);
+                    const keysAtLength = Math.pow(this.alphabetSize, len);
+                    this.keysByLength.push({
+                        length: len,
+                        startIndex: this.totalKeys,
+                        endIndex: this.totalKeys + keysAtLength - 1
+                    });
+                    this.totalKeys += keysAtLength;
                 }
             }
 
@@ -959,6 +1082,9 @@
                 const batch = [];
                 const remaining = Math.min(size, this.totalKeys - this.currentIndex);
                 
+                if (remaining <= 0) return batch;
+                
+                // Generate keys in batches for better performance
                 for (let i = 0; i < remaining; i++) {
                     batch.push(this.generateKey(this.currentIndex + i));
                 }
@@ -968,28 +1094,22 @@
             }
 
             generateKey(index) {
-                // Determine which key length this index falls into
-                let cumulative = 0;
-                let len = this.minKeyLength;
+                // Find which length range this index falls into
+                const lengthInfo = this.keysByLength.find(range => 
+                    index >= range.startIndex && index <= range.endIndex
+                );
                 
-                for (; len <= this.maxKeyLength; len++) {
-                    const keysAtThisLength = Math.pow(this.alphabet.length, len);
-                    if (index < cumulative + keysAtThisLength) {
-                        break;
-                    }
-                    cumulative += keysAtThisLength;
-                }
+                if (!lengthInfo) return "";
                 
-                // Generate the key at the relative position within this length
-                const relativeIndex = index - cumulative;
+                const len = lengthInfo.length;
+                const relativeIndex = index - lengthInfo.startIndex;
                 let key = "";
                 let remaining = relativeIndex;
-                const base = this.alphabet.length;
                 
                 for (let i = 0; i < len; i++) {
-                    const pos = remaining % base;
+                    const pos = remaining % this.alphabetSize;
                     key = this.alphabet.charAt(pos) + key;
-                    remaining = Math.floor(remaining / base);
+                    remaining = Math.floor(remaining / this.alphabetSize);
                 }
                 
                 return key;
