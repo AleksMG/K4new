@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Military-Grade Playfair Cipher Cracker v5.0</title>
+    <title>Military-Grade Playfair Cipher Cracker v6.0</title>
     <style>
         :root {
             --bg: #0a0a12;
@@ -218,6 +218,35 @@
             opacity: 1;
         }
         
+        .highlight {
+            background-color: rgba(255, 255, 0, 0.3);
+            padding: 2px;
+            border-radius: 2px;
+        }
+        
+        .settings-toggle {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            cursor: pointer;
+        }
+        
+        .settings-toggle span {
+            margin-left: 8px;
+        }
+        
+        .settings-panel {
+            display: none;
+            margin-top: 15px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+        
+        .settings-panel.active {
+            display: block;
+        }
+        
         @media (max-width: 768px) {
             .input-grid, .stats-grid {
                 grid-template-columns: 1fr;
@@ -228,7 +257,7 @@
 <body>
     <div class="container">
         <div class="panel">
-            <h1>▪ MILITARY-GRADE PLAYFAIR CIPHER CRACKER v5.0 ▪</h1>
+            <h1>▪ MILITARY-GRADE PLAYFAIR CIPHER CRACKER v6.0 ▪</h1>
             <p>Advanced brute-force attack system for decrypting Playfair cipher messages without the key</p>
             
             <label for="ciphertext">Ciphertext:</label>
@@ -249,6 +278,45 @@
                         <option value="7">7 characters</option>
                         <option value="8">8 characters</option>
                     </select>
+                </div>
+            </div>
+
+            <div class="settings-toggle" id="settings-toggle">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+                <span>Advanced Settings</span>
+            </div>
+
+            <div class="settings-panel" id="settings-panel">
+                <div class="input-grid">
+                    <div>
+                        <label for="custom-alphabet">Custom Alphabet: <span class="tooltip">(?)
+                            <span class="tooltiptext">Custom alphabet for the cipher (must be square number length)</span>
+                        </span></label>
+                        <input type="text" id="custom-alphabet" placeholder="Leave blank for standard Playfair (A-Z no J)" value="">
+                    </div>
+                    <div>
+                        <label for="batch-size">Worker Batch Size: <span class="tooltip">(?)
+                            <span class="tooltiptext">Keys per batch per worker (adjust for performance)</span>
+                        </span></label>
+                        <input type="number" id="batch-size" value="10000" min="1000" max="50000">
+                    </div>
+                </div>
+                <div class="input-grid">
+                    <div>
+                        <label for="worker-count">Worker Count: <span class="tooltip">(?)
+                            <span class="tooltiptext">Number of parallel workers (default: 75% of CPU cores)</span>
+                        </span></label>
+                        <input type="number" id="worker-count" value="0" min="1" max="32">
+                    </div>
+                    <div>
+                        <label for="score-threshold">Score Threshold: <span class="tooltip">(?)
+                            <span class="tooltiptext">Minimum score to display results (higher = stricter)</span>
+                        </span></label>
+                        <input type="number" id="score-threshold" value="1.0" min="0.1" max="10" step="0.1">
+                    </div>
                 </div>
             </div>
 
@@ -306,9 +374,11 @@
                 this.workerSpeeds = [];
                 this.keyGenerator = new KeyGenerator();
                 this.updateInterval = null;
+                this.workerScriptUrl = null;
                 
                 this.initControls();
                 this.initPerformanceWarning();
+                this.initSettingsToggle();
             }
 
             initControls() {
@@ -316,11 +386,21 @@
                 document.getElementById('stop').addEventListener('click', () => this.stopAttack());
             }
 
+            initSettingsToggle() {
+                const toggle = document.getElementById('settings-toggle');
+                const panel = document.getElementById('settings-panel');
+                
+                toggle.addEventListener('click', () => {
+                    panel.classList.toggle('active');
+                });
+            }
+
             initPerformanceWarning() {
                 const keyLengthSelect = document.getElementById('key-length');
                 keyLengthSelect.addEventListener('change', (e) => {
                     const length = parseInt(e.target.value);
-                    const totalKeys = Math.pow(25, length); // 25 letters in Playfair alphabet (no J)
+                    const alphabet = this.getCurrentAlphabet();
+                    const totalKeys = Math.pow(alphabet.length, length);
                     
                     document.getElementById('total-keys').textContent = totalKeys.toLocaleString();
                     
@@ -330,7 +410,60 @@
                 });
                 
                 // Initialize total keys display
-                document.getElementById('total-keys').textContent = Math.pow(25, 5).toLocaleString();
+                const alphabet = this.getCurrentAlphabet();
+                document.getElementById('total-keys').textContent = Math.pow(alphabet.length, 5).toLocaleString();
+            }
+
+            getCurrentAlphabet() {
+                const customAlphabet = document.getElementById('custom-alphabet').value.trim().toUpperCase();
+                if (customAlphabet && customAlphabet.length > 0) {
+                    // Remove duplicates and sort
+                    const uniqueChars = [...new Set(customAlphabet.split(''))].sort();
+                    return uniqueChars.join('');
+                }
+                return "ABCDEFGHIKLMNOPQRSTUVWXYZ"; // Standard Playfair (no J)
+            }
+
+            validateAlphabet(alphabet) {
+                if (!alphabet || alphabet.length === 0) {
+                    return { valid: false, message: "Alphabet cannot be empty" };
+                }
+                
+                // Check for duplicates
+                const uniqueChars = new Set(alphabet);
+                if (uniqueChars.size !== alphabet.length) {
+                    return { valid: false, message: "Alphabet contains duplicate characters" };
+                }
+                
+                // Check for non-alphabetic characters
+                const nonAlpha = alphabet.match(/[^A-Z]/);
+                if (nonAlpha) {
+                    return { valid: false, message: "Alphabet can only contain A-Z characters" };
+                }
+                
+                // Check if length is a square number (for Playfair grid)
+                const sqrt = Math.sqrt(alphabet.length);
+                if (sqrt % 1 !== 0) {
+                    return { valid: false, message: "Alphabet length must be a square number (4, 9, 16, 25, etc.)" };
+                }
+                
+                return { valid: true };
+            }
+
+            getWorkerCount() {
+                const inputCount = parseInt(document.getElementById('worker-count').value);
+                if (inputCount > 0) return inputCount;
+                
+                // Default to 75% of available cores
+                return Math.max(1, Math.floor((navigator.hardwareConcurrency || 4) * 0.75));
+            }
+
+            getBatchSize() {
+                return parseInt(document.getElementById('batch-size').value) || 10000;
+            }
+
+            getScoreThreshold() {
+                return parseFloat(document.getElementById('score-threshold').value) || 1.0;
             }
 
             startAttack() {
@@ -338,15 +471,24 @@
                 const ciphertext = document.getElementById('ciphertext').value.trim().replace(/\s+/g, '').toUpperCase();
                 const knownText = document.getElementById('known-text').value.toUpperCase();
                 const keyLength = parseInt(document.getElementById('key-length').value);
-
-                // Validate ciphertext contains only letters
+                const alphabet = this.getCurrentAlphabet();
+                
+                // Validate alphabet first
+                const alphabetValidation = this.validateAlphabet(alphabet);
+                if (!alphabetValidation.valid) {
+                    this.updateStatus(`ERROR: ${alphabetValidation.message}`, true);
+                    return;
+                }
+                
+                // Validate ciphertext contains only letters from alphabet
                 if (!ciphertext) {
                     this.updateStatus("ERROR: No ciphertext provided", true);
                     return;
                 }
 
-                if (!/^[A-Z]+$/.test(ciphertext)) {
-                    this.updateStatus("ERROR: Ciphertext must contain only letters (A-Z)", true);
+                const ciphertextRegex = new RegExp(`^[${alphabet}]+$`);
+                if (!ciphertextRegex.test(ciphertext)) {
+                    this.updateStatus(`ERROR: Ciphertext must contain only letters from the current alphabet (${alphabet})`, true);
                     return;
                 }
 
@@ -370,11 +512,17 @@
                 document.getElementById('stop').disabled = false;
 
                 // Initialize key generator
-                const alphabet = "ABCDEFGHIKLMNOPQRSTUVWXYZ"; // Standard Playfair (no J)
                 this.keyGenerator.init(alphabet, keyLength);
+                document.getElementById('total-keys').textContent = this.keyGenerator.totalKeys.toLocaleString();
 
-                // Create workers (use 75% of available cores)
-                const workerCount = Math.max(1, Math.floor((navigator.hardwareConcurrency || 4) * 0.75));
+                // Create worker script URL
+                if (this.workerScriptUrl) {
+                    URL.revokeObjectURL(this.workerScriptUrl);
+                }
+                this.workerScriptUrl = this.getWorkerScript(alphabet);
+
+                // Create workers
+                const workerCount = this.getWorkerCount();
                 this.createWorkers(workerCount, ciphertext, knownText);
 
                 // Start monitoring
@@ -386,7 +534,7 @@
                 const workerContainer = document.getElementById('workers');
 
                 for (let i = 0; i < count; i++) {
-                    const worker = new Worker(this.getWorkerScript());
+                    const worker = new Worker(this.workerScriptUrl);
                     
                     worker.onmessage = (e) => {
                         if (!this.isRunning) return;
@@ -429,9 +577,12 @@
                 }
             }
 
-            getWorkerScript() {
+            getWorkerScript(alphabet) {
                 // Worker implementation with proper Playfair decryption
                 const workerCode = `
+                    const ALPHABET = "${alphabet}";
+                    const GRID_SIZE = ${Math.sqrt(alphabet.length)};
+                    
                     const ENGLISH_FREQUENCIES = {
                         'A': 0.08167, 'B': 0.01492, 'C': 0.02782, 'D': 0.04253,
                         'E': 0.12702, 'F': 0.02228, 'G': 0.02015, 'H': 0.06094,
@@ -451,27 +602,26 @@
                     ];
 
                     function createKeySquare(key) {
-                        const alphabet = "ABCDEFGHIKLMNOPQRSTUVWXYZ";
-                        const keySquare = Array(5).fill().map(() => Array(5));
+                        const keySquare = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE));
                         const used = new Set();
                         
                         let row = 0, col = 0;
                         
-                        // Add key letters first (replace J with I)
-                        for (const char of key.toUpperCase().replace(/J/g, 'I')) {
-                            if (!used.has(char)) {
+                        // Add key letters first
+                        for (const char of key.toUpperCase()) {
+                            if (ALPHABET.includes(char) && !used.has(char)) {
                                 keySquare[row][col] = char;
                                 used.add(char);
-                                if (++col === 5) { col = 0; row++; }
+                                if (++col === GRID_SIZE) { col = 0; row++; }
                             }
                         }
                         
                         // Add remaining alphabet
-                        for (const char of alphabet) {
+                        for (const char of ALPHABET) {
                             if (!used.has(char)) {
                                 keySquare[row][col] = char;
                                 used.add(char);
-                                if (++col === 5) { col = 0; row++; }
+                                if (++col === GRID_SIZE) { col = 0; row++; }
                             }
                         }
                         
@@ -479,8 +629,8 @@
                     }
 
                     function findPosition(keySquare, char) {
-                        for (let row = 0; row < 5; row++) {
-                            for (let col = 0; col < 5; col++) {
+                        for (let row = 0; row < GRID_SIZE; row++) {
+                            for (let col = 0; col < GRID_SIZE; col++) {
                                 if (keySquare[row][col] === char) {
                                     return { row, col };
                                 }
@@ -498,10 +648,6 @@
                             let a = ciphertext[i];
                             let b = ciphertext[i+1] || 'X'; // Handle odd length with padding
                             
-                            // Replace J with I if present
-                            if (a === 'J') a = 'I';
-                            if (b === 'J') b = 'I';
-                            
                             // Find positions in key square
                             const posA = findPosition(keySquare, a);
                             const posB = findPosition(keySquare, b);
@@ -513,12 +659,12 @@
                             // Apply decryption rules
                             if (posA.row === posB.row) {
                                 // Same row - shift left
-                                plaintext += keySquare[posA.row][(posA.col + 4) % 5];
-                                plaintext += keySquare[posB.row][(posB.col + 4) % 5];
+                                plaintext += keySquare[posA.row][(posA.col + GRID_SIZE - 1) % GRID_SIZE];
+                                plaintext += keySquare[posB.row][(posB.col + GRID_SIZE - 1) % GRID_SIZE];
                             } else if (posA.col === posB.col) {
                                 // Same column - shift up
-                                plaintext += keySquare[(posA.row + 4) % 5][posA.col];
-                                plaintext += keySquare[(posB.row + 4) % 5][posB.col];
+                                plaintext += keySquare[(posA.row + GRID_SIZE - 1) % GRID_SIZE][posA.col];
+                                plaintext += keySquare[(posB.row + GRID_SIZE - 1) % GRID_SIZE][posB.col];
                             } else {
                                 // Rectangle rule
                                 plaintext += keySquare[posA.row][posB.col];
@@ -526,6 +672,20 @@
                             }
                         }
                         return plaintext;
+                    }
+
+                    function highlightMatches(text, known) {
+                        if (!known || known.trim() === '') return text;
+                        
+                        const fragments = known.split(',').map(f => f.trim()).filter(f => f.length > 0);
+                        let result = text;
+                        
+                        for (const fragment of fragments) {
+                            const regex = new RegExp(fragment, 'gi');
+                            result = result.replace(regex, match => \`<span class="highlight">\${match}</span>\`);
+                        }
+                        
+                        return result;
                     }
 
                     function scoreText(text, known) {
@@ -623,7 +783,7 @@
             assignWork(workerId, ciphertext, knownText) {
                 if (!this.isRunning || workerId >= this.workers.length) return;
                 
-                const batchSize = 5000; // Optimal batch size for performance
+                const batchSize = this.getBatchSize();
                 const batch = this.keyGenerator.getNextBatch(batchSize);
                 
                 if (batch.length > 0) {
@@ -640,12 +800,14 @@
             processResults(results) {
                 if (!results || results.length === 0) return;
                 
+                const threshold = this.getScoreThreshold();
+                
                 results.forEach(result => {
                     // Convert score to number if it's a string
                     const score = typeof result.score === 'string' ? parseFloat(result.score) : result.score;
                     
-                    // Only add results with score > 0.5 or if we have less than 15 results
-                    if (score > 0.5 || this.topResults.length < 15) {
+                    // Only add results with score > threshold or if we have less than 15 results
+                    if (score > threshold || this.topResults.length < 15) {
                         this.topResults.push({
                             key: result.key,
                             plaintext: result.plaintext,
@@ -665,8 +827,23 @@
                 this.updateResultsUI();
             }
 
+            highlightMatches(text, known) {
+                if (!known || known.trim() === '') return text;
+                
+                const fragments = known.split(',').map(f => f.trim()).filter(f => f.length > 0);
+                let result = text;
+                
+                for (const fragment of fragments) {
+                    const regex = new RegExp(fragment, 'gi');
+                    result = result.replace(regex, match => `<span class="highlight">${match}</span>`);
+                }
+                
+                return result;
+            }
+
             updateResultsUI() {
                 const container = document.getElementById('results');
+                const knownText = document.getElementById('known-text').value.toUpperCase();
                 
                 // Only update if we have results to avoid flickering
                 if (this.topResults.length === 0) return;
@@ -689,10 +866,13 @@
                         ? result.plaintext.substring(0, 100) + '...' 
                         : result.plaintext;
                     
+                    // Highlight known text matches
+                    const highlightedText = this.highlightMatches(displayText, knownText);
+                    
                     div.innerHTML = `
                         <div><strong>Key:</strong> ${result.key}</div>
                         <div><strong>Score:</strong> ${result.score.toFixed(2)}</div>
-                        <div><strong>Plaintext:</strong> ${displayText}</div>
+                        <div><strong>Plaintext:</strong> ${highlightedText}</div>
                     `;
                     
                     fragment.appendChild(div);
