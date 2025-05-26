@@ -167,7 +167,7 @@
             }
 
             startAttack() {
-                const ciphertext = document.getElementById('ciphertext').value.trim();
+                const ciphertext = document.getElementById('ciphertext').value.trim().replace(/\s+/g, '');
                 const knownText = document.getElementById('known-text').value;
                 const keyLength = parseInt(document.getElementById('key-length').value);
 
@@ -193,7 +193,7 @@
                 this.keyGenerator.init(alphabet, keyLength);
 
                 // Create workers
-                this.createWorkers(8, ciphertext, knownText);
+                this.createWorkers(navigator.hardwareConcurrency || 4, ciphertext, knownText);
 
                 // Start monitoring
                 this.updateInterval = setInterval(() => this.updateDashboard(), 200);
@@ -241,38 +241,111 @@
             }
 
             getWorkerScript() {
-                // This would be a separate worker.js file in production
+                // Worker implementation with proper Playfair decryption
                 const workerCode = `
+                    function createKeySquare(key) {
+                        const alphabet = "ABCDEFGHIKLMNOPQRSTUVWXYZ";
+                        const keySquare = Array(5).fill().map(() => Array(5));
+                        const used = new Set();
+                        
+                        let row = 0, col = 0;
+                        
+                        // Add key letters first
+                        for (const char of key.toUpperCase().replace(/J/g, 'I')) {
+                            if (!used.has(char)) {
+                                keySquare[row][col] = char;
+                                used.add(char);
+                                if (++col === 5) { col = 0; row++; }
+                            }
+                        }
+                        
+                        // Add remaining alphabet
+                        for (const char of alphabet) {
+                            if (!used.has(char)) {
+                                keySquare[row][col] = char;
+                                used.add(char);
+                                if (++col === 5) { col = 0; row++; }
+                            }
+                        }
+                        
+                        return keySquare;
+                    }
+
+                    function findPosition(keySquare, char) {
+                        for (let row = 0; row < 5; row++) {
+                            for (let col = 0; col < 5; col++) {
+                                if (keySquare[row][col] === char) {
+                                    return { row, col };
+                                }
+                            }
+                        }
+                        return { row: 0, col: 0 };
+                    }
+
                     const playfairDecrypt = (ciphertext, key) => {
-                        // Actual Playfair decryption implementation would go here
-                        // This is a simplified placeholder
+                        const keySquare = createKeySquare(key);
                         let plaintext = "";
-                        for (let i = 0; i < ciphertext.length; i++) {
-                            plaintext += String.fromCharCode(
-                                ciphertext.charCodeAt(i) ^ key.charCodeAt(i % key.length)
-                            );
+                        
+                        // Process ciphertext in digraphs
+                        for (let i = 0; i < ciphertext.length; i += 2) {
+                            const a = ciphertext[i];
+                            const b = ciphertext[i+1] || 'X'; // Handle odd length with padding
+                            
+                            // Find positions in key square
+                            const posA = findPosition(keySquare, a);
+                            const posB = findPosition(keySquare, b);
+                            
+                            // Apply decryption rules
+                            if (posA.row === posB.row) {
+                                // Same row - shift left
+                                plaintext += keySquare[posA.row][(posA.col + 4) % 5];
+                                plaintext += keySquare[posB.row][(posB.col + 4) % 5];
+                            } else if (posA.col === posB.col) {
+                                // Same column - shift up
+                                plaintext += keySquare[(posA.row + 4) % 5][posA.col];
+                                plaintext += keySquare[(posB.row + 4) % 5][posB.col];
+                            } else {
+                                // Rectangle rule
+                                plaintext += keySquare[posA.row][posB.col];
+                                plaintext += keySquare[posB.row][posA.col];
+                            }
                         }
                         return plaintext;
                     };
 
                     const scoreText = (text, known) => {
-                        // Advanced scoring would go here
                         let score = 0;
                         
                         // Check for common words
-                        const common = ["THE", "AND", "THAT", "HAVE", "THIS"];
+                        const common = ["THE", "AND", "THAT", "HAVE", "THIS", "FOR", "NOT", "WITH", "YOU"];
                         common.forEach(word => {
-                            if (text.includes(word)) score += 0.1;
+                            const regex = new RegExp(word, 'gi');
+                            const matches = text.match(regex);
+                            if (matches) score += matches.length * 0.1;
                         });
                         
                         // Check known fragments
                         if (known) {
                             known.split(',').forEach(fragment => {
-                                if (text.includes(fragment.trim())) score += 0.3;
+                                const trimmed = fragment.trim().toUpperCase();
+                                if (text.includes(trimmed)) {
+                                    score += 0.5 * (trimmed.length / 3);
+                                }
                             });
                         }
                         
-                        return Math.min(1, score);
+                        // Check letter frequency
+                        const freqScore = {
+                            'E': 12.7, 'T': 9.1, 'A': 8.2, 'O': 7.5, 'I': 7.0,
+                            'N': 6.7, 'S': 6.3, 'H': 6.1, 'R': 6.0, 'D': 4.3
+                        };
+                        
+                        for (const char in freqScore) {
+                            const count = (text.match(new RegExp(char, 'gi')) || [];
+                            score += count.length * (freqScore[char] / 1000);
+                        }
+                        
+                        return score;
                     };
 
                     let lastUpdate = Date.now();
@@ -289,7 +362,7 @@
                                 const plaintext = playfairDecrypt(ciphertext, key);
                                 const score = scoreText(plaintext, known);
                                 
-                                if (score > 0.5) {
+                                if (score > 0.7) {
                                     results.push({ key, plaintext, score });
                                 }
                             } catch (err) {
